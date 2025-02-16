@@ -41,6 +41,22 @@ When you start the application, you'll need to provide:
     - Use "Upload" to add new files to your bucket
     - Click "Exit" to close the application
 
+## Screenshots
+
+Here's a visual walkthrough of the application:
+
+### Login Screen
+![Login Screen](screenshots/login.png)
+*The login screen where you enter your S3 service configuration details*
+
+### File List View
+![File List](screenshots/filelist.png)
+*Main interface showing the list of objects in your bucket*
+
+### Upload Dialog
+![Upload Dialog](screenshots/upload-file.png)
+*File upload interface for adding new objects to your bucket*
+
 ## Technical Details
 
 Built using:
