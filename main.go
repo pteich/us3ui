@@ -149,7 +149,6 @@ func showMainWindow(a fyne.App, s3svc *s3.Service) {
 			}
 			defer reader.Close()
 
-			// Datei in []byte lesen
 			var fileData []byte
 			buf := make([]byte, 1024)
 			for {
@@ -162,13 +161,12 @@ func showMainWindow(a fyne.App, s3svc *s3.Service) {
 				}
 			}
 
-			// Hochladen
 			err = s3svc.UploadObject(reader.URI().Name(), fileData)
 			if err != nil {
 				dialog.ShowError(err, w)
 				return
 			}
-			dialog.ShowInformation("OK", "File uploaded!", w)
+			dialog.ShowInformation("OK", "Upload finished!", w)
 			loadObjects()
 		}, w)
 		fd.Show()
