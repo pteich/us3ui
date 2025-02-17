@@ -9,6 +9,8 @@ import (
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+
+	"github.com/pteich/us3ui/config"
 )
 
 type Service struct {
@@ -16,19 +18,18 @@ type Service struct {
 	bucketName string
 }
 
-func New(endpoint, accessKey, secretKey, bucketName string, useSSL bool) (*Service, error) {
-	client, err := minio.New(endpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
-		Secure: useSSL,
+func New(cfg config.S3Config) (*Service, error) {
+	client, err := minio.New(cfg.Endpoint, &minio.Options{
+		Creds:  credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
+		Secure: cfg.UseSSL,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to server: %w", err)
 	}
-	return &Service{client, bucketName}, nil
+	return &Service{client, cfg.Bucket}, nil
 }
 
-func (s *Service) ListObjects() ([]minio.ObjectInfo, error) {
-	ctx := context.Background()
+func (s *Service) ListObjects(ctx context.Context) ([]minio.ObjectInfo, error) {
 	objectCh := s.client.ListObjects(ctx, s.bucketName, minio.ListObjectsOptions{
 		Recursive: true,
 	})
@@ -42,8 +43,7 @@ func (s *Service) ListObjects() ([]minio.ObjectInfo, error) {
 	return objects, nil
 }
 
-func (s *Service) DeleteObject(objectName string) error {
-	ctx := context.Background()
+func (s *Service) DeleteObject(ctx context.Context, objectName string) error {
 	return s.client.RemoveObject(ctx, s.bucketName, objectName, minio.RemoveObjectOptions{})
 }
 
@@ -59,6 +59,6 @@ func (s *Service) UploadObject(filePath string, data []byte) error {
 	return err
 }
 
-func (s *Service) DownloadObject(objectName string) (io.ReadCloser, error) {
-	return s.client.GetObject(context.Background(), s.bucketName, objectName, minio.GetObjectOptions{})
+func (s *Service) DownloadObject(ctx context.Context, objectName string) (io.ReadCloser, error) {
+	return s.client.GetObject(ctx, s.bucketName, objectName, minio.GetObjectOptions{})
 }

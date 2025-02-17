@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"os"
+	"os/signal"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -13,30 +16,35 @@ import (
 
 	"github.com/minio/minio-go/v7"
 
+	"github.com/pteich/us3ui/config"
 	"github.com/pteich/us3ui/s3"
 )
 
-type S3Config struct {
-	Endpoint  string
-	AccessKey string
-	SecretKey string
-	Bucket    string
-	UseSSL    bool
-}
-
 func main() {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
+	defer cancel()
+
+	cfg, err := config.NewS3Config()
+	if err != nil {
+		dialog.ShowError(err, nil)
+		return
+	}
+
 	a := app.New()
 
 	configWin := a.NewWindow("s3 Server Config")
 
 	endpointEntry := widget.NewEntry()
-	endpointEntry.SetText("play.min.io")
+	endpointEntry.SetText(cfg.Endpoint)
 	accessKeyEntry := widget.NewEntry()
+	accessKeyEntry.SetText(cfg.AccessKey)
 	secretKeyEntry := widget.NewEntry()
+	secretKeyEntry.SetText(cfg.SecretKey)
+	secretKeyEntry.Password = true
 	bucketEntry := widget.NewEntry()
-	bucketEntry.SetText("bucket")
+	bucketEntry.SetText(cfg.Bucket)
 	sslCheck := widget.NewCheck("Use SSL (HTTPS)", nil)
-	sslCheck.SetChecked(true)
+	sslCheck.SetChecked(cfg.UseSSL)
 
 	configForm := &widget.Form{
 		Items: []*widget.FormItem{
@@ -46,21 +54,20 @@ func main() {
 			{Text: "Bucket Name", Widget: bucketEntry},
 		},
 		OnSubmit: func() {
-			cfg := S3Config{
-				Endpoint:  endpointEntry.Text,
-				AccessKey: accessKeyEntry.Text,
-				SecretKey: secretKeyEntry.Text,
-				Bucket:    bucketEntry.Text,
-				UseSSL:    sslCheck.Checked,
-			}
-			s3svc, err := s3.New(cfg.Endpoint, cfg.AccessKey, cfg.SecretKey, cfg.Bucket, cfg.UseSSL)
+			cfg.Endpoint = endpointEntry.Text
+			cfg.AccessKey = accessKeyEntry.Text
+			cfg.SecretKey = secretKeyEntry.Text
+			cfg.Bucket = bucketEntry.Text
+			cfg.UseSSL = sslCheck.Checked
+
+			s3svc, err := s3.New(cfg)
 			if err != nil {
 				dialog.ShowError(err, configWin)
 				return
 			}
 
 			configWin.Hide()
-			showMainWindow(a, s3svc)
+			showMainWindow(ctx, a, s3svc)
 		},
 		OnCancel: func() {
 			a.Quit()
@@ -76,7 +83,7 @@ func main() {
 	configWin.ShowAndRun()
 }
 
-func showMainWindow(a fyne.App, s3svc *s3.Service) {
+func showMainWindow(ctx context.Context, a fyne.App, s3svc *s3.Service) {
 	w := a.NewWindow("Universal s3 UI")
 
 	var currentObjects []minio.ObjectInfo
@@ -105,7 +112,7 @@ func showMainWindow(a fyne.App, s3svc *s3.Service) {
 	}
 
 	loadObjects := func() {
-		objects, err := s3svc.ListObjects()
+		objects, err := s3svc.ListObjects(ctx)
 		if err != nil {
 			dialog.ShowError(err, w)
 			return
@@ -131,7 +138,7 @@ func showMainWindow(a fyne.App, s3svc *s3.Service) {
 			fmt.Sprintf("Do you really want to delete '%s'?", obj.Key),
 			func(yes bool) {
 				if yes {
-					err := s3svc.DeleteObject(obj.Key)
+					err := s3svc.DeleteObject(ctx, obj.Key)
 					if err != nil {
 						dialog.ShowError(err, w)
 					} else {
@@ -189,7 +196,7 @@ func showMainWindow(a fyne.App, s3svc *s3.Service) {
 			}
 			defer fc.Close()
 
-			s3obj, err := s3svc.DownloadObject(obj.Key)
+			s3obj, err := s3svc.DownloadObject(ctx, obj.Key)
 			if err != nil {
 				dialog.ShowError(err, w)
 				return
