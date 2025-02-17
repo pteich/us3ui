@@ -29,6 +29,14 @@ When you start the application, you'll need to provide:
 - **Bucket Name**: The name of the bucket you want to access
 - **SSL**: Toggle for HTTPS connection (recommended for production use)
 
+The configuration values can also be preset using CLI flags or environment variables. This allows for easier integration into automated environments and scripts. The available options are:
+
+- **Endpoint**: `--endpoint` or `ENDPOINT`
+- **Access Key**: `--accesskey` or `ACCESS_KEY`
+- **Secret Key**: `--secretkey` or `SECRET_KEY`
+- **Bucket Name**: `--bucket` or `BUCKET`
+- **SSL**: `--usessl` or `USE_SSL`
+
 ### Usage
 
 1. Launch the application
