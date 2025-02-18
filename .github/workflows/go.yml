@@ -24,6 +24,9 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
 
+      - name: Install lib dependencies
+        run: sudo apt install libx11-dev libgl1-mesa-dev xorg-dev libxkbcommon-dev
+
       - name: Download dependencies
         run: go mod tidy
 
