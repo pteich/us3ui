@@ -12,6 +12,7 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/minio/minio-go/v7"
@@ -89,25 +90,59 @@ func showMainWindow(ctx context.Context, a fyne.App, s3svc *s3.Service) {
 	var currentObjects []minio.ObjectInfo
 	selectedIndex := -1
 
-	objectList := widget.NewList(
-		func() int {
-			return len(currentObjects)
+	itemsLabel := widget.NewLabel("")
+	updateItemsLabel := func() {
+		itemsLabel.SetText(fmt.Sprintf("Total Items: %d", len(currentObjects)))
+	}
+
+	objectList := widget.NewTableWithHeaders(
+		func() (int, int) {
+			return len(currentObjects), 3
 		},
 		func() fyne.CanvasObject {
-			return widget.NewLabel("Object Key")
+			return widget.NewLabel("Objects")
 		},
-		func(i widget.ListItemID, co fyne.CanvasObject) {
+		func(id widget.TableCellID, co fyne.CanvasObject) {
 			label := co.(*widget.Label)
-			obj := currentObjects[i]
-			label.SetText(fmt.Sprintf("%s (%d bytes)", obj.Key, obj.Size))
+			obj := currentObjects[id.Row]
+
+			switch id.Col {
+			case 0:
+				label.SetText(obj.Key)
+			case 1:
+				label.SetText(fmt.Sprintf("%d kB", obj.Size/1024))
+			case 2:
+				label.SetText(obj.LastModified.String())
+			}
 		},
 	)
-	objectList.OnSelected = func(id widget.ListItemID) {
-		selectedIndex = id
+	objectList.OnSelected = func(id widget.TableCellID) {
+		selectedIndex = id.Row
+
+		if id.Col > 1 {
+			id.Col = 0
+			objectList.Select(id)
+		}
+
 	}
-	objectList.OnUnselected = func(id widget.ListItemID) {
-		if selectedIndex == id {
+	objectList.OnUnselected = func(id widget.TableCellID) {
+		if selectedIndex == id.Row {
 			selectedIndex = -1
+		}
+	}
+	objectList.SetColumnWidth(0, 400)
+	objectList.SetColumnWidth(2, 100)
+	objectList.SetColumnWidth(3, 300)
+	objectList.ShowHeaderColumn = false
+	objectList.UpdateHeader = func(id widget.TableCellID, template fyne.CanvasObject) {
+		label := template.(*widget.Label)
+		switch id.Col {
+		case 0:
+			label.SetText("Name")
+		case 1:
+			label.SetText("Size")
+		case 2:
+			label.SetText("Last Modified")
 		}
 	}
 
@@ -119,6 +154,7 @@ func showMainWindow(ctx context.Context, a fyne.App, s3svc *s3.Service) {
 		}
 		currentObjects = objects
 		selectedIndex = -1
+		updateItemsLabel()
 		objectList.Refresh()
 	}
 
@@ -223,10 +259,31 @@ func showMainWindow(ctx context.Context, a fyne.App, s3svc *s3.Service) {
 	exitBtn.Alignment = widget.ButtonAlignTrailing
 
 	btnBar := container.NewHBox(refreshBtn, downloadBtn, deleteBtn, uploadBtn, exitBtn)
-	content := container.NewBorder(btnBar, nil, nil, nil, objectList)
+
+	searchInput := widget.NewEntry()
+	searchInput.SetPlaceHolder("Search...")
+	searchInput.Resize(fyne.NewSize(400, searchInput.MinSize().Height))
+
+	searchBar := container.New(layout.NewStackLayout(), searchInput)
+
+	topContainer := container.NewVBox(
+		btnBar,
+		container.NewPadded(searchBar),
+	)
+
+	progressBar := widget.NewProgressBar()
+	progressBar.Hide()
+
+	bottomContainer := container.NewHBox(
+		itemsLabel,
+		layout.NewSpacer(),
+		progressBar,
+	)
+
+	content := container.NewBorder(topContainer, container.NewPadded(bottomContainer), nil, nil, objectList)
 
 	w.SetContent(content)
-	w.Resize(fyne.NewSize(600, 400))
+	w.Resize(fyne.NewSize(800, 400))
 
 	loadObjects()
 
