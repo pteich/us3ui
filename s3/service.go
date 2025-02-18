@@ -16,17 +16,19 @@ import (
 type Service struct {
 	client     *minio.Client
 	bucketName string
+	prefix     string
 }
 
 func New(cfg config.S3Config) (*Service, error) {
 	client, err := minio.New(cfg.Endpoint, &minio.Options{
+		Region: cfg.Region,
 		Creds:  credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
 		Secure: cfg.UseSSL,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to server: %w", err)
 	}
-	return &Service{client, cfg.Bucket}, nil
+	return &Service{client: client, bucketName: cfg.Bucket, prefix: cfg.Prefix}, nil
 }
 
 func (s *Service) ListObjects(ctx context.Context) ([]minio.ObjectInfo, error) {
@@ -50,6 +52,7 @@ func (s *Service) DeleteObject(ctx context.Context, objectName string) error {
 func (s *Service) UploadObject(filePath string, data []byte) error {
 	ctx := context.Background()
 	objectName := filepath.Base(filePath)
+
 	_, err := s.client.PutObject(ctx, s.bucketName, objectName,
 		bytes.NewReader(data),
 		int64(len(data)),
@@ -65,7 +68,7 @@ func (s *Service) DownloadObject(ctx context.Context, objectName string) (io.Rea
 
 func (s *Service) ListObjectsBatch(ctx context.Context, startAfter string, batchSize int) ([]minio.ObjectInfo, error) {
 	opts := minio.ListObjectsOptions{
-		Prefix:     "",
+		Prefix:     s.prefix,
 		Recursive:  true,
 		StartAfter: startAfter,
 	}

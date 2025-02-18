@@ -9,6 +9,8 @@ type S3Config struct {
 	AccessKey string `cli:"accesskey" env:"ACCESS_KEY"`
 	SecretKey string `cli:"secretkey" env:"SECRET_KEY"`
 	Bucket    string `cli:"bucket" env:"BUCKET"`
+	Prefix    string `cli:"prefix" env:"PREFIX"`
+	Region    string `cli:"region" env:"REGION"`
 	UseSSL    bool   `cli:"usessl" env:"USE_SSL"`
 }
 

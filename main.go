@@ -48,6 +48,10 @@ func main() {
 	secretKeyEntry.Password = true
 	bucketEntry := widget.NewEntry()
 	bucketEntry.SetText(cfg.Bucket)
+	prefixEntry := widget.NewEntry()
+	prefixEntry.SetPlaceHolder("Optional Prefix")
+	regionEntry := widget.NewEntry()
+	regionEntry.SetPlaceHolder("Optional Region")
 	sslCheck := widget.NewCheck("Use SSL (HTTPS)", nil)
 	sslCheck.SetChecked(cfg.UseSSL)
 
@@ -57,6 +61,8 @@ func main() {
 			{Text: "Access Key", Widget: accessKeyEntry},
 			{Text: "Secret Key", Widget: secretKeyEntry},
 			{Text: "Bucket Name", Widget: bucketEntry},
+			{Text: "Region", Widget: regionEntry},
+			{Text: "Prefix", Widget: prefixEntry},
 		},
 		OnSubmit: func() {
 			cfg.Endpoint = endpointEntry.Text
@@ -64,6 +70,8 @@ func main() {
 			cfg.SecretKey = secretKeyEntry.Text
 			cfg.Bucket = bucketEntry.Text
 			cfg.UseSSL = sslCheck.Checked
+			cfg.Prefix = prefixEntry.Text
+			cfg.Region = regionEntry.Text
 
 			s3svc, err := s3.New(cfg)
 			if err != nil {
