@@ -5,4 +5,4 @@ Website = "https://github.com/pteich/us3ui"
   Name = "Universal s3 GUI"
   ID = "de.peter-teich.us3ui"
   Version = "0.1.0"
-  Build = 3
+  Build = 4
