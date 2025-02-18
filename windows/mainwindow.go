@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/minio/minio-go/v7"
 
@@ -45,10 +47,12 @@ func ShowMainWindow(ctx context.Context, a fyne.App, s3svc *s3.Service) {
 			switch id.Col {
 			case 0:
 				label.SetText(obj.Key)
+				label.Truncation = fyne.TextTruncateEllipsis
 			case 1:
 				label.SetText(fmt.Sprintf("%d kB", obj.Size/1024))
 			case 2:
-				label.SetText(obj.LastModified.String())
+				label.SetText(obj.LastModified.Format("2006-01-02 15:04:05"))
+				label.Truncation = fyne.TextTruncateEllipsis
 			}
 		},
 	)
@@ -67,19 +71,34 @@ func ShowMainWindow(ctx context.Context, a fyne.App, s3svc *s3.Service) {
 		}
 	}
 	objectList.SetColumnWidth(0, 400)
-	objectList.SetColumnWidth(2, 100)
-	objectList.SetColumnWidth(3, 300)
+	objectList.SetColumnWidth(1, 100)
+	objectList.SetColumnWidth(2, 250)
 	objectList.ShowHeaderColumn = false
-	objectList.UpdateHeader = func(id widget.TableCellID, template fyne.CanvasObject) {
-		label := template.(*widget.Label)
+	objectList.CreateHeader = func() fyne.CanvasObject {
+		b := widget.NewButton("", func() {})
+		b.Alignment = widget.ButtonAlignLeading
+
+		return b
+	}
+	objectList.UpdateHeader = func(id widget.TableCellID, o fyne.CanvasObject) {
+		b := o.(*widget.Button)
+		if id.Col == -1 {
+			b.SetText(strconv.Itoa(id.Row))
+			b.Importance = widget.LowImportance
+			b.Disable()
+			return
+		}
+
 		switch id.Col {
 		case 0:
-			label.SetText("Name")
+			b.SetText("Name")
+			b.Icon = theme.MoveUpIcon()
 		case 1:
-			label.SetText("Size")
+			b.SetText("Size")
 		case 2:
-			label.SetText("Last Modified")
+			b.SetText("Last Modified")
 		}
+
 	}
 
 	var allObjects []minio.ObjectInfo
