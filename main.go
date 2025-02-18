@@ -91,6 +91,7 @@ func showMainWindow(ctx context.Context, a fyne.App, s3svc *s3.Service) {
 	selectedIndex := -1
 
 	itemsLabel := widget.NewLabel("")
+	itemsLabel.Resize(fyne.NewSize(200, itemsLabel.MinSize().Height))
 	updateItemsLabel := func() {
 		itemsLabel.SetText(fmt.Sprintf("Total Items: %d", len(currentObjects)))
 	}
@@ -146,16 +147,68 @@ func showMainWindow(ctx context.Context, a fyne.App, s3svc *s3.Service) {
 		}
 	}
 
+	searchInput := widget.NewEntry()
+	searchInput.SetPlaceHolder("Search...")
+	searchInput.Resize(fyne.NewSize(400, searchInput.MinSize().Height))
+
+	searchBar := container.New(layout.NewStackLayout(), searchInput)
+
+	progressBar := widget.NewProgressBar()
+	progressBar.Hide()
+	progressBar.Resize(fyne.NewSize(400, progressBar.MinSize().Height))
+
+	stopBtn := widget.NewButton("Stop", func() {
+		// This will be implemented later
+	})
+	stopBtn.Hide()
+
 	loadObjects := func() {
-		objects, err := s3svc.ListObjects(ctx)
-		if err != nil {
-			dialog.ShowError(err, w)
-			return
-		}
-		currentObjects = objects
-		selectedIndex = -1
-		updateItemsLabel()
-		objectList.Refresh()
+		progressBar.Show()
+		stopBtn.Show()
+		progressBar.SetValue(0)
+
+		go func() {
+			defer progressBar.Hide()
+			defer stopBtn.Hide()
+
+			batchSize := 100
+			var objects []minio.ObjectInfo
+			var lastKey string
+			var err error
+
+			for {
+				batch, err := s3svc.ListObjectsBatch(ctx, lastKey, batchSize)
+				if err != nil {
+					dialog.ShowError(err, w)
+					return
+				}
+
+				objects = append(objects, batch...)
+				currentObjects = objects
+				updateItemsLabel()
+				objectList.Refresh()
+
+				progress := float64(len(objects)) / float64(len(objects)+len(batch))
+				progressBar.SetValue(progress)
+
+				if len(batch) < batchSize {
+					break
+				}
+
+				if len(batch) > 0 {
+					lastKey = batch[len(batch)-1].Key
+				}
+			}
+
+			if err != nil {
+				dialog.ShowError(err, w)
+				return
+			}
+
+			selectedIndex = -1
+			updateItemsLabel()
+			objectList.Refresh()
+		}()
 	}
 
 	// Buttons
@@ -258,26 +311,16 @@ func showMainWindow(ctx context.Context, a fyne.App, s3svc *s3.Service) {
 	exitBtn.Importance = widget.HighImportance
 	exitBtn.Alignment = widget.ButtonAlignTrailing
 
-	btnBar := container.NewHBox(refreshBtn, downloadBtn, deleteBtn, uploadBtn, exitBtn)
-
-	searchInput := widget.NewEntry()
-	searchInput.SetPlaceHolder("Search...")
-	searchInput.Resize(fyne.NewSize(400, searchInput.MinSize().Height))
-
-	searchBar := container.New(layout.NewStackLayout(), searchInput)
-
-	topContainer := container.NewVBox(
-		btnBar,
-		container.NewPadded(searchBar),
-	)
-
-	progressBar := widget.NewProgressBar()
-	progressBar.Hide()
-
 	bottomContainer := container.NewHBox(
 		itemsLabel,
 		layout.NewSpacer(),
 		progressBar,
+	)
+
+	btnBar := container.NewHBox(refreshBtn, downloadBtn, deleteBtn, uploadBtn, stopBtn, exitBtn)
+	topContainer := container.NewVBox(
+		btnBar,
+		container.NewPadded(searchBar),
 	)
 
 	content := container.NewBorder(topContainer, container.NewPadded(bottomContainer), nil, nil, objectList)

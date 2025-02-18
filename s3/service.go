@@ -62,3 +62,26 @@ func (s *Service) UploadObject(filePath string, data []byte) error {
 func (s *Service) DownloadObject(ctx context.Context, objectName string) (io.ReadCloser, error) {
 	return s.client.GetObject(ctx, s.bucketName, objectName, minio.GetObjectOptions{})
 }
+
+func (s *Service) ListObjectsBatch(ctx context.Context, startAfter string, batchSize int) ([]minio.ObjectInfo, error) {
+	opts := minio.ListObjectsOptions{
+		Prefix:     "",
+		Recursive:  true,
+		StartAfter: startAfter,
+	}
+
+	objectCh := s.client.ListObjects(ctx, s.bucketName, opts)
+	var objects []minio.ObjectInfo
+
+	for object := range objectCh {
+		if object.Err != nil {
+			return nil, object.Err
+		}
+		objects = append(objects, object)
+		if len(objects) >= batchSize {
+			break
+		}
+	}
+
+	return objects, nil
+}
