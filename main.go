@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -147,9 +148,41 @@ func showMainWindow(ctx context.Context, a fyne.App, s3svc *s3.Service) {
 		}
 	}
 
+	var allObjects []minio.ObjectInfo
+	var filteredObjects []minio.ObjectInfo
+	var searchTerm string
+	var searchDebounceTimer *time.Timer
+
+	updateObjectList := func() {
+		currentObjects = filteredObjects
+		objectList.Refresh()
+		updateItemsLabel()
+	}
+
+	filterObjects := func() {
+		if searchTerm == "" {
+			filteredObjects = allObjects
+		} else {
+			filteredObjects = []minio.ObjectInfo{}
+			for _, obj := range allObjects {
+				if strings.Contains(strings.ToLower(obj.Key), strings.ToLower(searchTerm)) {
+					filteredObjects = append(filteredObjects, obj)
+				}
+			}
+		}
+		updateObjectList()
+	}
+
 	searchInput := widget.NewEntry()
 	searchInput.SetPlaceHolder("Search...")
 	searchInput.Resize(fyne.NewSize(400, searchInput.MinSize().Height))
+	searchInput.OnChanged = func(s string) {
+		searchTerm = s
+		if searchDebounceTimer != nil {
+			searchDebounceTimer.Stop()
+		}
+		searchDebounceTimer = time.AfterFunc(300*time.Millisecond, filterObjects)
+	}
 
 	searchBar := container.New(layout.NewStackLayout(), searchInput)
 
@@ -172,9 +205,9 @@ func showMainWindow(ctx context.Context, a fyne.App, s3svc *s3.Service) {
 			defer stopBtn.Hide()
 
 			batchSize := 100
-			var objects []minio.ObjectInfo
-			var lastKey string
 			var err error
+			allObjects = []minio.ObjectInfo{}
+			var lastKey string
 
 			for {
 				batch, err := s3svc.ListObjectsBatch(ctx, lastKey, batchSize)
@@ -183,12 +216,10 @@ func showMainWindow(ctx context.Context, a fyne.App, s3svc *s3.Service) {
 					return
 				}
 
-				objects = append(objects, batch...)
-				currentObjects = objects
-				updateItemsLabel()
-				objectList.Refresh()
+				allObjects = append(allObjects, batch...)
+				filterObjects() // Apply current search filter
 
-				progress := float64(len(objects)) / float64(len(objects)+len(batch))
+				progress := float64(len(allObjects)) / float64(len(allObjects)+len(batch))
 				progressBar.SetValue(progress)
 
 				if len(batch) < batchSize {
@@ -206,8 +237,7 @@ func showMainWindow(ctx context.Context, a fyne.App, s3svc *s3.Service) {
 			}
 
 			selectedIndex = -1
-			updateItemsLabel()
-			objectList.Refresh()
+			filterObjects() // Final filter application
 		}()
 	}
 
@@ -314,10 +344,11 @@ func showMainWindow(ctx context.Context, a fyne.App, s3svc *s3.Service) {
 	bottomContainer := container.NewHBox(
 		itemsLabel,
 		layout.NewSpacer(),
-		progressBar,
+		stopBtn,
+		container.NewGridWrap(fyne.NewSize(400, progressBar.MinSize().Height), progressBar),
 	)
 
-	btnBar := container.NewHBox(refreshBtn, downloadBtn, deleteBtn, uploadBtn, stopBtn, exitBtn)
+	btnBar := container.NewHBox(refreshBtn, downloadBtn, deleteBtn, uploadBtn, exitBtn)
 	topContainer := container.NewVBox(
 		btnBar,
 		container.NewPadded(searchBar),
