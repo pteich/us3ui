@@ -32,9 +32,12 @@ func main() {
 		return
 	}
 
-	a := app.New()
+	a := app.NewWithID("de.peter-teich.us3ui")
+	iconRes := fyne.NewStaticResource("icon.png", iconPNG)
+	a.SetIcon(iconRes)
 
 	configWin := a.NewWindow("s3 Server Config")
+	configWin.CenterOnScreen()
 
 	endpointEntry := widget.NewEntry()
 	endpointEntry.SetText(cfg.Endpoint)
@@ -87,6 +90,8 @@ func main() {
 
 func showMainWindow(ctx context.Context, a fyne.App, s3svc *s3.Service) {
 	w := a.NewWindow("Universal s3 UI")
+	w.CenterOnScreen()
+	w.SetMaster()
 
 	var currentObjects []minio.ObjectInfo
 	selectedIndex := -1

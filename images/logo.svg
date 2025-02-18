@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg
+        width="512"
+        height="512"
+        viewBox="0 0 512 512"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg">
+
+    <path
+            d="M80 144C80 126.327 94.3272 112 112 112H200L232 144H400C417.673 144 432 158.327 432 176V368C432 385.673 417.673 400 400 400H112C94.3272 400 80 385.673 80 368V144Z"
+            fill="#FFC107"
+            stroke="#4A4A4A"
+            stroke-width="8"
+            stroke-linejoin="round"
+    />
+
+    <text
+            x="50%"
+            y="55%"
+            dominant-baseline="middle"
+            text-anchor="middle"
+            font-family="Arial"
+            font-size="100"
+            fill="#4A4A4A">
+        S3
+    </text>
+</svg>
