@@ -12,6 +12,13 @@ Universal S3 UI is a lightweight, cross-platform graphical user interface for ma
     - Download objects from your bucket
     - Delete objects with confirmation dialog
     - Refresh bucket contents
+- **Asynchronous Loading**: Load objects without blocking the UI
+- **Search Functionality**: Easily find objects in your bucket
+- **Progress Tracking**: Visual progress bar for long-running operations
+- **Pagination**: Load objects in batches for improved performance
+- **Detailed Object Information**: View object name, size, and last modified date
+- **Responsive UI**: Resizable columns for better visibility of object details
+
 
 ## Getting Started
 
@@ -43,10 +50,12 @@ The configuration values can also be preset using CLI flags or environment varia
 2. Enter your S3 service configuration details
 3. Click "Connect" to establish the connection
 4. Use the main interface to:
-    - View objects in your bucket
-    - Click "Refresh" to update the object list
+    - View objects in your bucket with detailed information
+    - Use the search bar to find specific objects
+    - Click "Refresh" to update the object list asynchronously
     - Select an object and use "Download" or "Delete" buttons
     - Use "Upload" to add new files to your bucket
+    - Monitor progress for long-running operations
     - Click "Exit" to close the application
 
 ## Screenshots
