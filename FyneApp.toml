@@ -1,0 +1,8 @@
+Website = "https://github.com/pteich/us3ui"
+
+[Details]
+  Icon = "Icon.png"
+  Name = "Universal s3 GUI"
+  ID = "de.peter-teich.us3ui"
+  Version = "0.1.0"
+  Build = 3

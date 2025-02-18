@@ -20,6 +20,10 @@ Universal S3 UI is a lightweight, cross-platform graphical user interface for ma
 - **Responsive UI**: Resizable columns for better visibility of object details
 
 
+## Download Pre-built Binaries
+
+You can download pre-built binaries for Linux, macOS, and Windows from the [GitHub Releases](https://github.com/pteich/us3ui/releases) page. This allows you to quickly get started with Universal S3 UI without needing to build from source. Simply download the appropriate binary for your operating system, extract it, and run the executable.
+
 ## Getting Started
 
 ### Prerequisites
