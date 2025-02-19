@@ -102,28 +102,30 @@ func ShowMainWindow(ctx context.Context, a fyne.App, s3svc *s3.Service) {
 	}
 
 	var allObjects []minio.ObjectInfo
-	var filteredObjects []minio.ObjectInfo
 	var searchTerm string
 	var searchDebounceTimer *time.Timer
 
-	updateObjectList := func() {
-		currentObjects = filteredObjects
-		objectList.Refresh()
-		updateItemsLabel()
-	}
-
-	filterObjects := func() {
+	filterObjects := func() []minio.ObjectInfo {
 		if searchTerm == "" {
-			filteredObjects = allObjects
-		} else {
-			filteredObjects = []minio.ObjectInfo{}
-			for _, obj := range allObjects {
-				if strings.Contains(strings.ToLower(obj.Key), strings.ToLower(searchTerm)) {
-					filteredObjects = append(filteredObjects, obj)
-				}
+			return allObjects
+		}
+
+		var filteredObjects []minio.ObjectInfo
+
+		filteredObjects = []minio.ObjectInfo{}
+		for _, obj := range allObjects {
+			if strings.Contains(strings.ToLower(obj.Key), strings.ToLower(searchTerm)) {
+				filteredObjects = append(filteredObjects, obj)
 			}
 		}
-		updateObjectList()
+
+		return filteredObjects
+	}
+
+	updateObjectList := func() {
+		currentObjects = filterObjects()
+		objectList.Refresh()
+		updateItemsLabel()
 	}
 
 	searchInput := widget.NewEntry()
@@ -134,7 +136,7 @@ func ShowMainWindow(ctx context.Context, a fyne.App, s3svc *s3.Service) {
 		if searchDebounceTimer != nil {
 			searchDebounceTimer.Stop()
 		}
-		searchDebounceTimer = time.AfterFunc(300*time.Millisecond, filterObjects)
+		searchDebounceTimer = time.AfterFunc(300*time.Millisecond, updateObjectList)
 	}
 
 	searchBar := container.New(layout.NewStackLayout(), searchInput)
@@ -152,6 +154,7 @@ func ShowMainWindow(ctx context.Context, a fyne.App, s3svc *s3.Service) {
 		progressBar.Show()
 		stopBtn.Show()
 		progressBar.SetValue(0)
+		searchInput.SetText("")
 
 		go func() {
 			defer progressBar.Hide()
@@ -170,7 +173,6 @@ func ShowMainWindow(ctx context.Context, a fyne.App, s3svc *s3.Service) {
 				}
 
 				allObjects = append(allObjects, batch...)
-				filterObjects() // Apply current search filter
 
 				progress := float64(len(allObjects)) / float64(len(allObjects)+len(batch))
 				progressBar.SetValue(progress)
@@ -183,14 +185,13 @@ func ShowMainWindow(ctx context.Context, a fyne.App, s3svc *s3.Service) {
 					lastKey = batch[len(batch)-1].Key
 				}
 			}
-
 			if err != nil {
 				dialog.ShowError(err, w)
 				return
 			}
 
 			selectedIndex = -1
-			filterObjects() // Final filter application
+			updateObjectList()
 		}()
 	}
 
