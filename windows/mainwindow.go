@@ -130,23 +130,6 @@ func (mw *MainWindow) createObjectList() *widget.Table {
 		},
 	)
 
-	/*
-		objectList.OnSelected = func(id widget.TableCellID) {
-			mw.selectedIndex = id.Row
-
-			mw.deleteBtn.Enable()
-			mw.downloadBtn.Enable()
-		}
-
-		objectList.OnUnselected = func(id widget.TableCellID) {
-			if mw.selectedIndex < 0 || id.Row == mw.selectedIndex {
-				mw.selectedIndex = -1
-				mw.deleteBtn.Disable()
-				mw.downloadBtn.Disable()
-			}
-		}
-	*/
-
 	objectList.SetColumnWidth(0, 40)
 	objectList.SetColumnWidth(1, 400)
 	objectList.SetColumnWidth(2, 100)
@@ -352,9 +335,14 @@ func (mw *MainWindow) handleDelete(ctx context.Context) {
 		return
 	}
 
+	msg := fmt.Sprintf("Do you really want to delete '%d' files?", len(mw.selectedIndex))
+	if len(mw.selectedIndex) == 1 {
+		msg = "Do you really want to delete this file?"
+	}
+
 	confirm := dialog.NewConfirm(
 		"Delete Objects",
-		fmt.Sprintf("Do you really want to delete '%d' files?", len(mw.selectedIndex)),
+		msg,
 		func(yes bool) {
 			if yes {
 				for idx := range mw.selectedIndex {
