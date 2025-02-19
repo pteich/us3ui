@@ -49,14 +49,16 @@ func ShowConfigWindow(ctx context.Context, cfg config.S3Config, a fyne.App) {
 			cfg.Prefix = prefixEntry.Text
 			cfg.Region = regionEntry.Text
 
+			configWin.Hide()
+
 			s3svc, err := s3.New(cfg)
 			if err != nil {
 				dialog.ShowError(err, configWin)
 				return
 			}
 
-			configWin.Hide()
-			ShowMainWindow(ctx, a, s3svc)
+			mainWin := NewMainWindow(a, s3svc)
+			mainWin.Show(ctx)
 		},
 		OnCancel: func() {
 			a.Quit()
