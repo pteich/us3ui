@@ -272,6 +272,9 @@ func (mw *MainWindow) loadObjects(ctx context.Context) {
 			if len(batch) > 0 {
 				lastKey = batch[len(batch)-1].Key
 			}
+
+			mw.selectedIndex = -1
+			mw.updateObjectList()
 		}
 		if err != nil {
 			dialog.ShowError(err, mw.window)
