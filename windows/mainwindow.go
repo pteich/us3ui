@@ -447,36 +447,4 @@ func (mw *MainWindow) handleDownload(ctx context.Context) {
 	}, mw.window)
 
 	folderSaveDialog.Show()
-
-	/*
-		obj := mw.currentObjects[mw.selectedIndex]
-		fileSaveDialog := dialog.NewFileSave(func(fc fyne.URIWriteCloser, err error) {
-			if err != nil {
-				dialog.ShowError(err, mw.window)
-				return
-			}
-			if fc == nil {
-				return
-			}
-			defer fc.Close()
-
-			s3obj, err := mw.s3svc.DownloadObject(ctx, obj.Key)
-			if err != nil {
-				dialog.ShowError(err, mw.window)
-				return
-			}
-			defer s3obj.Close()
-
-			_, copyErr := io.Copy(fc, s3obj)
-			if copyErr != nil {
-				dialog.ShowError(copyErr, mw.window)
-				return
-			}
-
-			dialog.ShowInformation("Download", "Download finished!", mw.window)
-		}, mw.window)
-
-		fileSaveDialog.SetFileName(strings.ReplaceAll(obj.Key, "/", "_"))
-		fileSaveDialog.Show()
-	*/
 }
