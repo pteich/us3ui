@@ -5,10 +5,10 @@ Website = "https://github.com/pteich/us3ui"
   Name = "Universal s3 GUI"
   ID = "de.peter-teich.us3ui"
   Version = "0.2.0"
-  Build = 4
+  Build = 5
 
 [LinuxAndBSD]
   GenericName = "Universal s3 GUI"
   Categories = ["Network"]
-  Comment = "Browser s3 compatible storage systems and manage your files"
+  Comment = "Browse s3 compatible storage systems and manage your files"
   Keywords = ["files", "cloud", "web"]

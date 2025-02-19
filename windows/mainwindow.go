@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -25,7 +26,7 @@ type MainWindow struct {
 	s3svc               *s3.Service
 	currentObjects      []minio.ObjectInfo
 	allObjects          []minio.ObjectInfo
-	selectedIndex       int
+	selectedIndex       map[int]bool
 	searchTerm          string
 	searchDebounceTimer *time.Timer
 
@@ -34,6 +35,8 @@ type MainWindow struct {
 	searchInput *widget.Entry
 	progressBar *widget.ProgressBar
 	stopBtn     *widget.Button
+	deleteBtn   *widget.Button
+	downloadBtn *widget.Button
 }
 
 func NewMainWindow(a fyne.App, s3svc *s3.Service) *MainWindow {
@@ -84,42 +87,70 @@ func (mw *MainWindow) updateItemsLabel() {
 func (mw *MainWindow) createObjectList() *widget.Table {
 	objectList := widget.NewTableWithHeaders(
 		func() (int, int) {
-			return len(mw.currentObjects), 3
+			return len(mw.currentObjects), 4
 		},
 		func() fyne.CanvasObject {
-			return widget.NewLabel("Objects")
+			return container.NewStack(
+				widget.NewCheck("", nil),
+				widget.NewLabel("Objects"),
+			)
 		},
 		func(id widget.TableCellID, co fyne.CanvasObject) {
-			label := co.(*widget.Label)
+			box := co.(*fyne.Container)
+			check := box.Objects[0].(*widget.Check)
+			label := box.Objects[1].(*widget.Label)
 			obj := mw.currentObjects[id.Row]
 
 			switch id.Col {
 			case 0:
-				label.SetText(obj.Key)
-				label.Truncation = fyne.TextTruncateEllipsis
+				check.Show()
+				check.Refresh()
+				label.Hide()
+
+				check.OnChanged = func(checked bool) {
+					if checked {
+						mw.updateSelect(id.Row, true)
+					} else {
+						mw.updateSelect(id.Row, false)
+					}
+				}
 			case 1:
-				label.SetText(fmt.Sprintf("%d kB", obj.Size/1024))
-			case 2:
-				label.SetText(obj.LastModified.Format("2006-01-02 15:04:05"))
+				check.Hide()
+				label.TextStyle = fyne.TextStyle{Bold: true}
 				label.Truncation = fyne.TextTruncateEllipsis
+				label.SetText(obj.Key)
+			case 2:
+				check.Hide()
+				label.SetText(fmt.Sprintf("%d kB", obj.Size/1024))
+			case 3:
+				check.Hide()
+				label.Truncation = fyne.TextTruncateClip
+				label.SetText(obj.LastModified.Format("2006-01-02 15:04:05"))
 			}
 		},
 	)
-	objectList.OnSelected = func(id widget.TableCellID) {
-		mw.selectedIndex = id.Row
-		if id.Col > 1 {
-			id.Col = 0
-			objectList.Select(id)
+
+	/*
+		objectList.OnSelected = func(id widget.TableCellID) {
+			mw.selectedIndex = id.Row
+
+			mw.deleteBtn.Enable()
+			mw.downloadBtn.Enable()
 		}
-	}
-	objectList.OnUnselected = func(id widget.TableCellID) {
-		if mw.selectedIndex == id.Row {
-			mw.selectedIndex = -1
+
+		objectList.OnUnselected = func(id widget.TableCellID) {
+			if mw.selectedIndex < 0 || id.Row == mw.selectedIndex {
+				mw.selectedIndex = -1
+				mw.deleteBtn.Disable()
+				mw.downloadBtn.Disable()
+			}
 		}
-	}
-	objectList.SetColumnWidth(0, 400)
-	objectList.SetColumnWidth(1, 100)
-	objectList.SetColumnWidth(2, 250)
+	*/
+
+	objectList.SetColumnWidth(0, 40)
+	objectList.SetColumnWidth(1, 400)
+	objectList.SetColumnWidth(2, 100)
+	objectList.SetColumnWidth(3, 210)
 	objectList.ShowHeaderColumn = false
 	objectList.CreateHeader = func() fyne.CanvasObject {
 		b := widget.NewButton("", func() {})
@@ -137,11 +168,12 @@ func (mw *MainWindow) createObjectList() *widget.Table {
 
 		switch id.Col {
 		case 0:
+		case 1:
 			b.SetText("Name")
 			b.Icon = theme.MoveUpIcon()
-		case 1:
-			b.SetText("Size")
 		case 2:
+			b.SetText("Size")
+		case 3:
 			b.SetText("Last Modified")
 		}
 	}
@@ -195,6 +227,9 @@ func (mw *MainWindow) createButtonBar(ctx context.Context) *fyne.Container {
 	deleteBtn := widget.NewButton("Delete", func() {
 		mw.handleDelete(ctx)
 	})
+	deleteBtn.Disable()
+
+	mw.deleteBtn = deleteBtn
 
 	uploadBtn := widget.NewButton("Upload", func() {
 		mw.handleUpload(ctx)
@@ -203,6 +238,9 @@ func (mw *MainWindow) createButtonBar(ctx context.Context) *fyne.Container {
 	downloadBtn := widget.NewButton("Download", func() {
 		mw.handleDownload(ctx)
 	})
+	downloadBtn.Disable()
+
+	mw.downloadBtn = downloadBtn
 
 	exitBtn := widget.NewButton("Exit", func() {
 		mw.app.Quit()
@@ -232,8 +270,30 @@ func (mw *MainWindow) filterObjects() []minio.ObjectInfo {
 	return filteredObjects
 }
 
+func (mw *MainWindow) updateSelect(idx int, selected bool) {
+	if selected {
+		if mw.selectedIndex == nil {
+			mw.selectedIndex = make(map[int]bool)
+		}
+
+		mw.selectedIndex[idx] = selected
+
+		mw.deleteBtn.Enable()
+		mw.downloadBtn.Enable()
+	} else {
+		delete(mw.selectedIndex, idx)
+		if len(mw.selectedIndex) == 0 {
+			mw.selectedIndex = nil
+			mw.deleteBtn.Disable()
+			mw.downloadBtn.Disable()
+		}
+	}
+}
+
 func (mw *MainWindow) updateObjectList() {
 	mw.currentObjects = mw.filterObjects()
+	mw.selectedIndex = nil
+	mw.objectList.UnselectAll()
 	mw.objectList.Refresh()
 	mw.updateItemsLabel()
 }
@@ -273,7 +333,7 @@ func (mw *MainWindow) loadObjects(ctx context.Context) {
 				lastKey = batch[len(batch)-1].Key
 			}
 
-			mw.selectedIndex = -1
+			mw.selectedIndex = nil
 			mw.updateObjectList()
 		}
 		if err != nil {
@@ -281,27 +341,28 @@ func (mw *MainWindow) loadObjects(ctx context.Context) {
 			return
 		}
 
-		mw.selectedIndex = -1
+		mw.selectedIndex = nil
 		mw.updateObjectList()
 	}()
 }
 
 func (mw *MainWindow) handleDelete(ctx context.Context) {
-	if mw.selectedIndex < 0 || mw.selectedIndex >= len(mw.currentObjects) {
+	if mw.selectedIndex == nil {
 		dialog.ShowInformation("Info", "No object selected", mw.window)
 		return
 	}
-	obj := mw.currentObjects[mw.selectedIndex]
+
 	confirm := dialog.NewConfirm(
-		"Delete Object?",
-		fmt.Sprintf("Do you really want to delete '%s'?", obj.Key),
+		"Delete Objects",
+		fmt.Sprintf("Do you really want to delete '%d' files?", len(mw.selectedIndex)),
 		func(yes bool) {
 			if yes {
-				err := mw.s3svc.DeleteObject(ctx, obj.Key)
-				if err != nil {
-					dialog.ShowError(err, mw.window)
-				} else {
-					mw.loadObjects(ctx)
+				for idx := range mw.selectedIndex {
+					obj := mw.currentObjects[idx]
+					err := mw.s3svc.DeleteObject(ctx, obj.Key)
+					if err != nil {
+						dialog.ShowError(err, mw.window)
+					}
 				}
 			}
 		}, mw.window)
@@ -339,38 +400,83 @@ func (mw *MainWindow) handleUpload(ctx context.Context) {
 }
 
 func (mw *MainWindow) handleDownload(ctx context.Context) {
-	if mw.selectedIndex < 0 || mw.selectedIndex >= len(mw.currentObjects) {
+	if mw.selectedIndex == nil {
 		dialog.ShowInformation("Info", "No object selected!", mw.window)
 		return
 	}
-	obj := mw.currentObjects[mw.selectedIndex]
 
-	fileSaveDialog := dialog.NewFileSave(func(fc fyne.URIWriteCloser, err error) {
-		if err != nil {
-			dialog.ShowError(err, mw.window)
-			return
-		}
-		if fc == nil {
-			return
-		}
-		defer fc.Close()
+	folderSaveDialog := dialog.NewFolderOpen(func(uri fyne.ListableURI, err error) {
+		num := len(mw.selectedIndex)
+		i := 0
+		for idx := range mw.selectedIndex {
+			i++
+			mw.progressBar.Show()
+			mw.progressBar.SetValue(float64(100*i/num) / 100)
+			mw.progressBar.Refresh()
+			obj := mw.currentObjects[idx]
 
-		s3obj, err := mw.s3svc.DownloadObject(ctx, obj.Key)
-		if err != nil {
-			dialog.ShowError(err, mw.window)
-			return
-		}
-		defer s3obj.Close()
+			filePath := uri.Path() + "/" + obj.Key
 
-		_, copyErr := io.Copy(fc, s3obj)
-		if copyErr != nil {
-			dialog.ShowError(copyErr, mw.window)
-			return
+			mw.itemsLabel.SetText(fmt.Sprintf("Downloading %s", obj.Key))
+
+			s3obj, err := mw.s3svc.DownloadObject(ctx, obj.Key)
+			if err != nil {
+				dialog.ShowError(err, mw.window)
+				continue
+			}
+
+			f, err := os.Create(filePath)
+			if err != nil {
+				dialog.ShowError(err, mw.window)
+				s3obj.Close()
+				continue
+			}
+
+			_, copyErr := io.Copy(f, s3obj)
+			if copyErr != nil {
+				dialog.ShowError(copyErr, mw.window)
+			}
+
+			f.Close()
+			s3obj.Close()
 		}
 
-		dialog.ShowInformation("Download", "Download finished!", mw.window)
+		mw.progressBar.Hide()
+		mw.updateObjectList()
+
 	}, mw.window)
 
-	fileSaveDialog.SetFileName(strings.ReplaceAll(obj.Key, "/", "_"))
-	fileSaveDialog.Show()
+	folderSaveDialog.Show()
+
+	/*
+		obj := mw.currentObjects[mw.selectedIndex]
+		fileSaveDialog := dialog.NewFileSave(func(fc fyne.URIWriteCloser, err error) {
+			if err != nil {
+				dialog.ShowError(err, mw.window)
+				return
+			}
+			if fc == nil {
+				return
+			}
+			defer fc.Close()
+
+			s3obj, err := mw.s3svc.DownloadObject(ctx, obj.Key)
+			if err != nil {
+				dialog.ShowError(err, mw.window)
+				return
+			}
+			defer s3obj.Close()
+
+			_, copyErr := io.Copy(fc, s3obj)
+			if copyErr != nil {
+				dialog.ShowError(copyErr, mw.window)
+				return
+			}
+
+			dialog.ShowInformation("Download", "Download finished!", mw.window)
+		}, mw.window)
+
+		fileSaveDialog.SetFileName(strings.ReplaceAll(obj.Key, "/", "_"))
+		fileSaveDialog.Show()
+	*/
 }
