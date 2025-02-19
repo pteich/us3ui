@@ -57,7 +57,7 @@ The configuration values can also be preset using CLI flags or environment varia
     - View objects in your bucket with detailed information
     - Use the search bar to find specific objects
     - Click "Refresh" to update the object list asynchronously
-    - Select an object and use "Download" or "Delete" buttons
+    - Select one or multiple objects and use "Download" or "Delete" buttons
     - Use "Upload" to add new files to your bucket
     - Monitor progress for long-running operations
     - Click "Exit" to close the application
@@ -73,6 +73,10 @@ Here's a visual walkthrough of the application:
 ### File List View
 ![File List](screenshots/filelist.png)
 *Main interface showing the list of objects in your bucket*
+
+### Select files to download
+![File List](screenshots/selectfiles.png)
+*Select one or multiple objects by clicking the checkbox in the first column to download or delete*
 
 ### Upload Dialog
 ![Upload Dialog](screenshots/upload-file.png)
