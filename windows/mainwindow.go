@@ -409,7 +409,7 @@ func (mw *MainWindow) handleLink(ctx context.Context) {
 
 	for idx := range mw.selectedIndex {
 		obj := mw.currentObjects[idx]
-		linkurl, err := mw.s3svc.GetPresignedURL(ctx, obj.Key, 5*time.Minute)
+		linkurl, err := mw.s3svc.GetPresignedURL(ctx, obj.Key, 1*time.Hour)
 		if err != nil {
 			dialog.ShowError(err, mw.window)
 			return

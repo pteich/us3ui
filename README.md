@@ -9,11 +9,12 @@ Universal S3 UI is a lightweight, cross-platform graphical user interface for ma
 - **File Management**:
     - Browse objects in your bucket with size information
     - Upload local files to your bucket
-    - Download objects from your bucket
-    - Delete objects with confirmation dialog
+    - Download selected files from your bucket to your local machine
+    - Delete objects
+    - Select files and generate temporary download links valid for one hour
     - Refresh bucket contents
 - **Asynchronous Loading**: Load objects without blocking the UI
-- **Search Functionality**: Easily find objects in your bucket
+- **Search Functionality**: Easily find objects with simple fulltext search
 - **Progress Tracking**: Visual progress bar for long-running operations
 - **Pagination**: Load objects in batches for improved performance
 - **Detailed Object Information**: View object name, size, and last modified date
@@ -56,10 +57,9 @@ The configuration values can also be preset using CLI flags or environment varia
 4. Use the main interface to:
     - View objects in your bucket with detailed information
     - Use the search bar to find specific objects
-    - Click "Refresh" to update the object list asynchronously
-    - Select one or multiple objects and use "Download" or "Delete" buttons
-    - Use "Upload" to add new files to your bucket
-    - Monitor progress for long-running operations
+    - Select one or multiple objects to download or delete files
+    - Use upload to add new local files to your bucket
+    - Select files and generate temporary download links
     - Click "Exit" to close the application
 
 ## Screenshots
