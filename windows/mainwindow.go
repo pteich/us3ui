@@ -20,6 +20,8 @@ import (
 	"github.com/pteich/us3ui/s3"
 )
 
+const batchSize = 150
+
 type MainWindow struct {
 	app                 fyne.App
 	window              fyne.Window
@@ -37,6 +39,7 @@ type MainWindow struct {
 	stopBtn     *widget.Button
 	deleteBtn   *widget.Button
 	downloadBtn *widget.Button
+	linkBtn     *widget.Button
 }
 
 func NewMainWindow(a fyne.App, s3svc *s3.Service) *MainWindow {
@@ -206,32 +209,42 @@ func (mw *MainWindow) createButtonBar(ctx context.Context) *fyne.Container {
 	refreshBtn := widget.NewButton("Refresh", func() {
 		mw.loadObjects(ctx)
 	})
+	refreshBtn.Icon = theme.ViewRefreshIcon()
 
 	deleteBtn := widget.NewButton("Delete", func() {
 		mw.handleDelete(ctx)
 	})
+	deleteBtn.Icon = theme.DeleteIcon()
 	deleteBtn.Disable()
-
 	mw.deleteBtn = deleteBtn
 
 	uploadBtn := widget.NewButton("Upload", func() {
 		mw.handleUpload(ctx)
 	})
+	uploadBtn.Icon = theme.UploadIcon()
 
 	downloadBtn := widget.NewButton("Download", func() {
 		mw.handleDownload(ctx)
 	})
+	downloadBtn.Icon = theme.DownloadIcon()
 	downloadBtn.Disable()
-
 	mw.downloadBtn = downloadBtn
+
+	linkBtn := widget.NewButton("Link", func() {
+		mw.handleLink(ctx)
+	})
+	linkBtn.Icon = theme.MailSendIcon()
+	linkBtn.Disable()
+	mw.linkBtn = linkBtn
 
 	exitBtn := widget.NewButton("Exit", func() {
 		mw.app.Quit()
 	})
 	exitBtn.Importance = widget.HighImportance
 	exitBtn.Alignment = widget.ButtonAlignTrailing
+	exitBtn.Icon = theme.CancelIcon()
 
-	return container.NewHBox(refreshBtn, downloadBtn, deleteBtn, uploadBtn, exitBtn)
+	return container.NewHBox(refreshBtn, downloadBtn, deleteBtn, linkBtn, uploadBtn, exitBtn)
 }
 
 func (mw *MainWindow) createTopContainer(btnBar *fyne.Container) *fyne.Container {
@@ -263,12 +276,14 @@ func (mw *MainWindow) updateSelect(idx int, selected bool) {
 
 		mw.deleteBtn.Enable()
 		mw.downloadBtn.Enable()
+		mw.linkBtn.Enable()
 	} else {
 		delete(mw.selectedIndex, idx)
 		if len(mw.selectedIndex) == 0 {
 			mw.selectedIndex = nil
 			mw.deleteBtn.Disable()
 			mw.downloadBtn.Disable()
+			mw.linkBtn.Disable()
 		}
 	}
 }
@@ -291,7 +306,6 @@ func (mw *MainWindow) loadObjects(ctx context.Context) {
 		defer mw.progressBar.Hide()
 		defer mw.stopBtn.Hide()
 
-		batchSize := 100
 		var err error
 		mw.allObjects = []minio.ObjectInfo{}
 		var lastKey string
@@ -385,6 +399,32 @@ func (mw *MainWindow) handleUpload(ctx context.Context) {
 		mw.loadObjects(ctx)
 	}, mw.window)
 	fd.Show()
+}
+
+func (mw *MainWindow) handleLink(ctx context.Context) {
+	if mw.selectedIndex == nil {
+		dialog.ShowInformation("Info", "No object selected", mw.window)
+		return
+	}
+
+	for idx := range mw.selectedIndex {
+		obj := mw.currentObjects[idx]
+		linkurl, err := mw.s3svc.GetPresignedURL(ctx, obj.Key, 5*time.Minute)
+		if err != nil {
+			dialog.ShowError(err, mw.window)
+			return
+		}
+
+		t := widget.NewEntry()
+		t.SetText(linkurl.String())
+
+		d := dialog.NewCustomWithoutButtons("Link to "+obj.Key, t, mw.window)
+		d.SetButtons([]fyne.CanvasObject{widget.NewButton("Copy and Close", func() {
+			mw.window.Clipboard().SetContent(linkurl.String())
+			d.Hide()
+		})})
+		d.Show()
+	}
 }
 
 func (mw *MainWindow) handleDownload(ctx context.Context) {

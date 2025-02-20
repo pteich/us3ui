@@ -5,7 +5,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
 	"path/filepath"
+	"time"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -64,6 +66,10 @@ func (s *Service) UploadObject(filePath string, data []byte) error {
 
 func (s *Service) DownloadObject(ctx context.Context, objectName string) (io.ReadCloser, error) {
 	return s.client.GetObject(ctx, s.bucketName, objectName, minio.GetObjectOptions{})
+}
+
+func (s *Service) GetPresignedURL(ctx context.Context, objectName string, expires time.Duration) (*url.URL, error) {
+	return s.client.PresignedGetObject(ctx, s.bucketName, objectName, expires, nil)
 }
 
 func (s *Service) ListObjectsBatch(ctx context.Context, startAfter string, batchSize int) ([]minio.ObjectInfo, error) {
