@@ -11,6 +11,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/pteich/us3ui/config"
+	"github.com/pteich/us3ui/connections"
 	"github.com/pteich/us3ui/s3"
 )
 
@@ -48,31 +49,16 @@ func ShowConnectWindow(ctx context.Context, cfg config.S3Config, a fyne.App) {
 	configWin := a.NewWindow("S3 Server Config")
 	configWin.CenterOnScreen()
 
-	// Connection Manager Panel
-	connections := []config.S3Config{
-		{
-			Name:      "My Connection",
-			Endpoint:  "s3.example.com",
-			AccessKey: "myaccesskey",
-			SecretKey: "mysecretkey",
-			Bucket:    "mybucket",
-			Prefix:    "myprefix",
-			Region:    "myregion",
-			UseSSL:    true,
-		},
-	}
+	connectionManager := connections.NewManager()
 	connectionsList := widget.NewList(
-		func() int { return len(connections) },
+		func() int { return connectionManager.Count() },
 		func() fyne.CanvasObject { return widget.NewLabel("") },
 		func(i widget.ListItemID, o fyne.CanvasObject) {
-			o.(*widget.Label).SetText(connections[i].Name)
+			o.(*widget.Label).SetText(connectionManager.Get(i).Name)
 		},
 	)
-
-	connectionsList.OnSelected = func(id widget.ListItemID) {
-		// On select, update fields with the chosen connection's details (this requires storage for connections)
-		// Load selected connection details into the form entries here
-	}
+	connectionsList.Resize(fyne.NewSize(300, 200))
+	connectionsList.Refresh()
 
 	// Configuration Form
 	endpointEntry := widget.NewEntry()
@@ -96,17 +82,39 @@ func ShowConnectWindow(ctx context.Context, cfg config.S3Config, a fyne.App) {
 	sslCheck := widget.NewCheck("Use SSL (HTTPS)", nil)
 	sslCheck.SetChecked(cfg.UseSSL)
 
-	connectionAddEntry := widget.NewEntry()
-	connectionAddEntry.SetPlaceHolder("Connection Name")
-	connectionAddEntry.SetText(cfg.Name)
+	connectionNameEntry := widget.NewEntry()
+	connectionNameEntry.SetPlaceHolder("Connection Name")
+	connectionNameEntry.SetText(cfg.Name)
 
-	saveConnectionBtn := widget.NewButton("Save", func() {})
+	toolbarSaveAction := widget.NewToolbarAction(theme.DocumentSaveIcon(), func() {
+		newcfg := config.S3Config{
+			Endpoint:  endpointEntry.Text,
+			AccessKey: accessKeyEntry.Text,
+			SecretKey: secretKeyEntry.Text,
+			Bucket:    bucketEntry.Text,
+			UseSSL:    sslCheck.Checked,
+			Prefix:    prefixEntry.Text,
+			Region:    regionEntry.Text,
+			Name:      connectionNameEntry.Text,
+		}
+		connectionManager.Add(newcfg)
+		connectionsList.Refresh()
+	})
+	toolbarSaveAction.Disable()
 
-	saveConnection := container.New(&saveConnectionLayout{padding: 10}, connectionAddEntry, saveConnectionBtn)
+	connectionNameEntry.OnChanged = func(name string) {
+		if name == "" {
+			toolbarSaveAction.Disable()
+		} else {
+			toolbarSaveAction.Enable()
+		}
+	}
 
-	sep := widget.NewSeparator()
+	//saveConnectionBtn := widget.NewButton("Save", func() {})
+	//saveConnection := container.New(&saveConnectionLayout{padding: 10}, connectionNameEntry, saveConnectionBtn)
 
 	configForm := widget.NewForm([]*widget.FormItem{
+		{Text: "Connection Name", Widget: connectionNameEntry},
 		{Text: "Endpoint", Widget: endpointEntry},
 		{Text: "Access Key", Widget: accessKeyEntry},
 		{Text: "Secret Key", Widget: secretKeyEntry},
@@ -115,8 +123,6 @@ func ShowConnectWindow(ctx context.Context, cfg config.S3Config, a fyne.App) {
 		{Text: "Region", Widget: regionEntry},
 		{Text: "Prefix", Widget: prefixEntry},
 		{Text: "", Widget: sslCheck},
-		{Text: "Connection Name", Widget: saveConnection},
-		{Text: "", Widget: sep},
 	}...)
 	configForm.OnSubmit = func() {
 		cfg.Endpoint = endpointEntry.Text
@@ -126,7 +132,7 @@ func ShowConnectWindow(ctx context.Context, cfg config.S3Config, a fyne.App) {
 		cfg.UseSSL = sslCheck.Checked
 		cfg.Prefix = prefixEntry.Text
 		cfg.Region = regionEntry.Text
-		cfg.Name = connectionAddEntry.Text
+		cfg.Name = connectionNameEntry.Text
 
 		configWin.Hide()
 
@@ -145,13 +151,42 @@ func ShowConnectWindow(ctx context.Context, cfg config.S3Config, a fyne.App) {
 	configForm.SubmitText = "Connect"
 	configForm.CancelText = "Abort"
 
+	toolbarAddAction := widget.NewToolbarAction(theme.ContentAddIcon(), func() { fmt.Println("add") })
+	toolbarDeleteAction := widget.NewToolbarAction(theme.ContentRemoveIcon(), func() {
+		connectionManager.Remove(connectionManager.GetSelected())
+		connectionsList.Refresh()
+	})
+	toolbarDeleteAction.Disable()
+
 	listButtons := widget.NewToolbar(
-		widget.NewToolbarAction(theme.ContentAddIcon(), func() { fmt.Println("add") }),
-		widget.NewToolbarAction(theme.ContentRemoveIcon(), func() { fmt.Println("remove") }),
+		toolbarAddAction,
+		toolbarDeleteAction,
+		widget.NewToolbarSpacer(),
+		toolbarSaveAction,
 	)
 
+	connectionsList.OnSelected = func(id widget.ListItemID) {
+		selectedCfg := connectionManager.Get(id)
+		connectionManager.SetSelected(id)
+		connectionNameEntry.SetText(selectedCfg.Name)
+		endpointEntry.SetText(selectedCfg.Endpoint)
+		accessKeyEntry.SetText(selectedCfg.AccessKey)
+		secretKeyEntry.SetText(selectedCfg.SecretKey)
+		bucketEntry.SetText(selectedCfg.Bucket)
+		prefixEntry.SetText(selectedCfg.Prefix)
+		regionEntry.SetText(selectedCfg.Region)
+		sslCheck.SetChecked(selectedCfg.UseSSL)
+		connectionNameEntry.SetText(selectedCfg.Name)
+		toolbarDeleteAction.Enable()
+	}
+	connectionsList.OnUnselected = func(id widget.ListItemID) {
+		toolbarDeleteAction.Disable()
+		connectionManager.SetSelected(-1)
+	}
+
 	// Main Layout
-	connectionPanel := container.NewVBox(listButtons, connectionsList)
+	connectionPanel := container.NewBorder(listButtons, nil, nil, nil, connectionsList)
+	//connectionPanel := container.NewVBox(listButtons, connectionsList, layout.NewSpacer())
 	formPanel := container.NewVBox(configForm)
 	split := container.NewHSplit(connectionPanel, formPanel)
 	split.SetOffset(0.3)
