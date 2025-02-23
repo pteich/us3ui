@@ -46,6 +46,9 @@ func NewMainWindow(a fyne.App, s3svc *s3.Service) *MainWindow {
 	window := a.NewWindow("Universal s3 UI")
 	window.CenterOnScreen()
 	window.SetMaster()
+	window.SetOnDropped(func(p fyne.Position, files []fyne.URI) {
+		// TODO handle dropped files
+	})
 
 	return &MainWindow{
 		app:    a,

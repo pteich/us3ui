@@ -27,5 +27,5 @@ func main() {
 	iconRes := fyne.NewStaticResource("icon.png", iconPNG)
 	a.SetIcon(iconRes)
 
-	windows.ShowConfigWindow(ctx, cfg, a)
+	windows.ShowConnectWindow(ctx, cfg, a)
 }
