@@ -45,7 +45,7 @@ func (c *saveConnectionLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
 }
 
 func ShowConnectWindow(ctx context.Context, cfg *config.Config, a fyne.App) {
-	configWin := a.NewWindow("S3 Server Config")
+	configWin := a.NewWindow("S3 Server Connection")
 	configWin.CenterOnScreen()
 
 	connectionManager := connections.NewManager(cfg)
