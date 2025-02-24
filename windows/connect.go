@@ -2,7 +2,6 @@ package windows
 
 import (
 	"context"
-	"fmt"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -163,12 +162,27 @@ func ShowConnectWindow(ctx context.Context, cfg *config.Config, a fyne.App) {
 	configForm.SubmitText = "Connect"
 	configForm.CancelText = "Abort"
 
-	toolbarAddAction := widget.NewToolbarAction(theme.ContentAddIcon(), func() { fmt.Println("add") })
 	toolbarDeleteAction := widget.NewToolbarAction(theme.ContentRemoveIcon(), func() {
 		connectionManager.Remove(connectionManager.GetSelected())
 		connectionsList.Refresh()
 	})
 	toolbarDeleteAction.Disable()
+
+	toolbarAddAction := widget.NewToolbarAction(theme.ContentAddIcon(), func() {
+		connectionManager.SetSelected(-1)
+		selectedCfg := config.S3Config{}
+		connectionNameEntry.SetText(selectedCfg.Name)
+		endpointEntry.SetText(selectedCfg.Endpoint)
+		accessKeyEntry.SetText(selectedCfg.AccessKey)
+		secretKeyEntry.SetText(selectedCfg.SecretKey)
+		bucketEntry.SetText(selectedCfg.Bucket)
+		prefixEntry.SetText(selectedCfg.Prefix)
+		regionEntry.SetText(selectedCfg.Region)
+		sslCheck.SetChecked(selectedCfg.UseSSL)
+		connectionNameEntry.SetText(selectedCfg.Name)
+		toolbarSaveAction.Disable()
+		toolbarDeleteAction.Disable()
+	})
 	toolbarCopyAction := widget.NewToolbarAction(theme.ContentCopyIcon(), func() {
 		selectedCfg := connectionManager.Get(connectionManager.GetSelected())
 		newCfg := selectedCfg
