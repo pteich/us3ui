@@ -109,7 +109,9 @@ Built using:
 ## Security Note
 
 Ensure you're using SSL (HTTPS) when connecting to production servers to protect your credentials and data in transit.
-All credentials are only used on your local machine to create the connection.
+All credentials are only used on your local machine to create the necessary connection.
+If you save connections using the connection manager, please notice that the secret key is saved in 
+your local config file unencrypted. Leave the field empty before saving or don't save connections at all to prevent this. 
 
 ## License
 
