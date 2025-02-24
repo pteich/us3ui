@@ -25,6 +25,7 @@ Built with Go and Fyne, this application provides a seamless experience across m
 
 - *Connection Manager*: Save and manage multiple S3 service configurations
 - *Drag-and-Drop Support*: Drag multiple files from your local machine to upload to your bucket
+- *Sorting*: Sort objects by name, size, or last modified date
 
 ## Download Pre-built Binaries
 
