@@ -173,8 +173,16 @@ func ShowConnectWindow(ctx context.Context, cfg *config.Config, a fyne.App) {
 		selectedCfg := connectionManager.Get(connectionManager.GetSelected())
 		newCfg := selectedCfg
 		newCfg.Name = "Copy of " + selectedCfg.Name
-		connectionManager.Add(newCfg)
-		connectionsList.Refresh()
+
+		newNameEntry := widget.NewEntry()
+		newNameEntry.SetText(newCfg.Name)
+		dialog.ShowCustomConfirm("New connection name", "Copy Connection", "Abort", newNameEntry, func(b bool) {
+			if b {
+				newCfg.Name = newNameEntry.Text
+				connectionManager.Add(newCfg)
+				connectionsList.Refresh()
+			}
+		}, configWin)
 	})
 	toolbarCopyAction.Disable()
 
