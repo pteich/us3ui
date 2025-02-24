@@ -50,6 +50,13 @@ func ShowConnectWindow(ctx context.Context, cfg *config.Config, a fyne.App) {
 	configWin.CenterOnScreen()
 
 	connectionManager := connections.NewManager(cfg)
+	defer func() {
+		err := connectionManager.Save()
+		if err != nil {
+			dialog.ShowError(err, configWin)
+		}
+	}()
+
 	connectionsList := widget.NewList(
 		func() int { return connectionManager.Count() },
 		func() fyne.CanvasObject { return widget.NewLabel("") },
@@ -162,7 +169,13 @@ func ShowConnectWindow(ctx context.Context, cfg *config.Config, a fyne.App) {
 		connectionsList.Refresh()
 	})
 	toolbarDeleteAction.Disable()
-	toolbarCopyAction := widget.NewToolbarAction(theme.ContentCopyIcon(), func() { fmt.Println("copy") })
+	toolbarCopyAction := widget.NewToolbarAction(theme.ContentCopyIcon(), func() {
+		selectedCfg := connectionManager.Get(connectionManager.GetSelected())
+		newCfg := selectedCfg
+		newCfg.Name = "Copy of " + selectedCfg.Name
+		connectionManager.Add(newCfg)
+		connectionsList.Refresh()
+	})
 	toolbarCopyAction.Disable()
 
 	listButtons := widget.NewToolbar(

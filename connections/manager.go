@@ -7,12 +7,14 @@ import (
 type List []config.S3Config
 
 type Manager struct {
+	cfg         *config.Config
 	connections List
 	selected    int
 }
 
 func NewManager(cfg *config.Config) *Manager {
 	return &Manager{
+		cfg:         cfg,
 		connections: cfg.Settings.Connections,
 		selected:    -1,
 	}
@@ -43,4 +45,9 @@ func (m *Manager) Remove(index int) {
 		return
 	}
 	m.connections = append(m.connections[:index], m.connections[index+1:]...)
+}
+
+func (m *Manager) Save() error {
+	m.cfg.Settings.Connections = m.connections
+	return m.cfg.Save()
 }

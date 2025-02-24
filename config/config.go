@@ -69,5 +69,14 @@ func (c *Config) Save() error {
 	}
 	defer f.Close()
 
+	connections := make([]S3Config, 0)
+	for _, conn := range c.Settings.Connections {
+		if conn.Name != Transient {
+			connections = append(connections, conn)
+		}
+	}
+
+	c.Settings.Connections = connections
+
 	return json.NewEncoder(f).Encode(c.Settings)
 }
