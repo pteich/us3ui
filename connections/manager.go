@@ -11,9 +11,9 @@ type Manager struct {
 	selected    int
 }
 
-func NewManager() *Manager {
+func NewManager(cfg *config.Config) *Manager {
 	return &Manager{
-		connections: List{},
+		connections: cfg.Settings.Connections,
 		selected:    -1,
 	}
 }

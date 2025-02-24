@@ -17,7 +17,7 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
 	defer cancel()
 
-	cfg, err := config.NewS3Config()
+	cfg, err := config.New()
 	if err != nil {
 		dialog.ShowError(err, nil)
 		return

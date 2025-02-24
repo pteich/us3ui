@@ -45,11 +45,11 @@ func (c *saveConnectionLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
 	return fyne.NewSize(minWidth, minHeight)
 }
 
-func ShowConnectWindow(ctx context.Context, cfg config.S3Config, a fyne.App) {
+func ShowConnectWindow(ctx context.Context, cfg *config.Config, a fyne.App) {
 	configWin := a.NewWindow("S3 Server Config")
 	configWin.CenterOnScreen()
 
-	connectionManager := connections.NewManager()
+	connectionManager := connections.NewManager(cfg)
 	connectionsList := widget.NewList(
 		func() int { return connectionManager.Count() },
 		func() fyne.CanvasObject { return widget.NewLabel("") },
@@ -61,30 +61,35 @@ func ShowConnectWindow(ctx context.Context, cfg config.S3Config, a fyne.App) {
 	connectionsList.Refresh()
 
 	// Configuration Form
+	s3cfg := config.S3Config{}
+	if connectionManager.GetSelected() >= 0 {
+		s3cfg = connectionManager.Get(connectionManager.GetSelected())
+	}
+
 	endpointEntry := widget.NewEntry()
 	endpointEntry.SetPlaceHolder("endpoint with optional port")
-	endpointEntry.SetText(cfg.Endpoint)
+	endpointEntry.SetText(s3cfg.Endpoint)
 	accessKeyEntry := widget.NewEntry()
-	accessKeyEntry.SetText(cfg.AccessKey)
+	accessKeyEntry.SetText(s3cfg.AccessKey)
 	secretKeyEntry := widget.NewPasswordEntry()
-	secretKeyEntry.SetText(cfg.SecretKey)
+	secretKeyEntry.SetText(s3cfg.SecretKey)
 
-	saveSecretkey := widget.NewCheck("Save secret key in system keyring", nil)
+	//saveSecretkey := widget.NewCheck("Save secret key in system keyring", nil)
 
 	bucketEntry := widget.NewEntry()
-	bucketEntry.SetText(cfg.Bucket)
+	bucketEntry.SetText(s3cfg.Bucket)
 	prefixEntry := widget.NewEntry()
 	prefixEntry.SetPlaceHolder("Optional Prefix")
-	prefixEntry.SetText(cfg.Prefix)
+	prefixEntry.SetText(s3cfg.Prefix)
 	regionEntry := widget.NewEntry()
 	regionEntry.SetPlaceHolder("Optional Region")
-	regionEntry.SetText(cfg.Region)
+	regionEntry.SetText(s3cfg.Region)
 	sslCheck := widget.NewCheck("Use SSL (HTTPS)", nil)
-	sslCheck.SetChecked(cfg.UseSSL)
+	sslCheck.SetChecked(s3cfg.UseSSL)
 
 	connectionNameEntry := widget.NewEntry()
 	connectionNameEntry.SetPlaceHolder("Connection Name")
-	connectionNameEntry.SetText(cfg.Name)
+	connectionNameEntry.SetText(s3cfg.Name)
 
 	toolbarSaveAction := widget.NewToolbarAction(theme.DocumentSaveIcon(), func() {
 		newcfg := config.S3Config{
@@ -110,33 +115,32 @@ func ShowConnectWindow(ctx context.Context, cfg config.S3Config, a fyne.App) {
 		}
 	}
 
-	//saveConnectionBtn := widget.NewButton("Save", func() {})
-	//saveConnection := container.New(&saveConnectionLayout{padding: 10}, connectionNameEntry, saveConnectionBtn)
-
 	configForm := widget.NewForm([]*widget.FormItem{
 		{Text: "Connection Name", Widget: connectionNameEntry},
 		{Text: "Endpoint", Widget: endpointEntry},
 		{Text: "Access Key", Widget: accessKeyEntry},
 		{Text: "Secret Key", Widget: secretKeyEntry},
-		{Text: "", Widget: saveSecretkey},
+		//{Text: "", Widget: saveSecretkey},
 		{Text: "Bucket Name", Widget: bucketEntry},
 		{Text: "Region", Widget: regionEntry},
 		{Text: "Prefix", Widget: prefixEntry},
 		{Text: "", Widget: sslCheck},
 	}...)
 	configForm.OnSubmit = func() {
-		cfg.Endpoint = endpointEntry.Text
-		cfg.AccessKey = accessKeyEntry.Text
-		cfg.SecretKey = secretKeyEntry.Text
-		cfg.Bucket = bucketEntry.Text
-		cfg.UseSSL = sslCheck.Checked
-		cfg.Prefix = prefixEntry.Text
-		cfg.Region = regionEntry.Text
-		cfg.Name = connectionNameEntry.Text
+		s3Cfg := config.S3Config{
+			Endpoint:  endpointEntry.Text,
+			AccessKey: accessKeyEntry.Text,
+			SecretKey: secretKeyEntry.Text,
+			Bucket:    bucketEntry.Text,
+			UseSSL:    sslCheck.Checked,
+			Prefix:    prefixEntry.Text,
+			Region:    regionEntry.Text,
+			Name:      connectionNameEntry.Text,
+		}
 
 		configWin.Hide()
 
-		s3svc, err := s3.New(cfg)
+		s3svc, err := s3.New(s3Cfg)
 		if err != nil {
 			dialog.ShowError(err, configWin)
 			return
@@ -157,10 +161,13 @@ func ShowConnectWindow(ctx context.Context, cfg config.S3Config, a fyne.App) {
 		connectionsList.Refresh()
 	})
 	toolbarDeleteAction.Disable()
+	toolbarCopyAction := widget.NewToolbarAction(theme.ContentCopyIcon(), func() { fmt.Println("copy") })
+	toolbarCopyAction.Disable()
 
 	listButtons := widget.NewToolbar(
 		toolbarAddAction,
 		toolbarDeleteAction,
+		toolbarCopyAction,
 		widget.NewToolbarSpacer(),
 		toolbarSaveAction,
 	)
@@ -178,9 +185,11 @@ func ShowConnectWindow(ctx context.Context, cfg config.S3Config, a fyne.App) {
 		sslCheck.SetChecked(selectedCfg.UseSSL)
 		connectionNameEntry.SetText(selectedCfg.Name)
 		toolbarDeleteAction.Enable()
+		toolbarCopyAction.Enable()
 	}
 	connectionsList.OnUnselected = func(id widget.ListItemID) {
 		toolbarDeleteAction.Disable()
+		toolbarCopyAction.Disable()
 		connectionManager.SetSelected(-1)
 	}
 
