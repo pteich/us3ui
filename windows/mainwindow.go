@@ -291,6 +291,19 @@ func (mw *MainWindow) updateSelect(idx int, selected bool) {
 	}
 }
 
+func (mw *MainWindow) removeObject(key string) {
+	for idx, obj := range mw.allObjects {
+		if obj.Key == key {
+			if idx == len(mw.allObjects)-1 {
+				mw.allObjects = mw.allObjects[:idx]
+				return
+			}
+			mw.allObjects = append(mw.allObjects[:idx], mw.allObjects[idx+1:]...)
+			return
+		}
+	}
+}
+
 func (mw *MainWindow) updateObjectList() {
 	mw.currentObjects = mw.filterObjects()
 	mw.selectedIndex = nil
@@ -361,15 +374,21 @@ func (mw *MainWindow) handleDelete(ctx context.Context) {
 		"Delete Objects",
 		msg,
 		func(yes bool) {
-			if yes {
-				for idx := range mw.selectedIndex {
-					obj := mw.currentObjects[idx]
-					err := mw.s3svc.DeleteObject(ctx, obj.Key)
-					if err != nil {
-						dialog.ShowError(err, mw.window)
-					}
+			if !yes {
+				return
+			}
+
+			for idx := range mw.selectedIndex {
+				obj := mw.currentObjects[idx]
+				err := mw.s3svc.DeleteObject(ctx, obj.Key)
+				if err != nil {
+					dialog.ShowError(err, mw.window)
+				} else {
+					mw.removeObject(obj.Key)
 				}
 			}
+
+			mw.updateObjectList()
 		}, mw.window)
 	confirm.Show()
 }
@@ -401,6 +420,7 @@ func (mw *MainWindow) handleUpload(ctx context.Context) {
 		dialog.ShowInformation("OK", "Upload finished!", mw.window)
 		mw.loadObjects(ctx)
 	}, mw.window)
+
 	fd.Show()
 }
 
