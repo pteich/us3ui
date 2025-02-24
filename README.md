@@ -24,7 +24,7 @@ Built with Go and Fyne, this application provides a seamless experience across m
 ## Planned Features
 
 - *Connection Manager*: Save and manage multiple S3 service configurations
-- *Drag-and-Drop Support*: Drag files from your local machine to upload to your bucket
+- *Drag-and-Drop Support*: Drag multiple files from your local machine to upload to your bucket
 
 ## Download Pre-built Binaries
 
@@ -96,6 +96,7 @@ Built using:
 ## Security Note
 
 Ensure you're using SSL (HTTPS) when connecting to production servers to protect your credentials and data in transit.
+All credentials are only used on your local machine to create the connection.
 
 ## License
 
