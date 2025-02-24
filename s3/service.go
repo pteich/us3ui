@@ -74,9 +74,12 @@ func (s *Service) GetPresignedURL(ctx context.Context, objectName string, expire
 
 func (s *Service) ListObjectsBatch(ctx context.Context, startAfter string, batchSize int) ([]minio.ObjectInfo, error) {
 	opts := minio.ListObjectsOptions{
-		Prefix:     s.prefix,
-		Recursive:  true,
-		StartAfter: startAfter,
+		WithVersions: false,
+		WithMetadata: false,
+		MaxKeys:      batchSize,
+		Prefix:       s.prefix,
+		Recursive:    true,
+		StartAfter:   startAfter,
 	}
 
 	objectCh := s.client.ListObjects(ctx, s.bucketName, opts)

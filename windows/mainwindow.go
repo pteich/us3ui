@@ -87,7 +87,14 @@ func (mw *MainWindow) createItemsLabel() *widget.Label {
 }
 
 func (mw *MainWindow) updateItemsLabel() {
-	mw.itemsLabel.SetText(fmt.Sprintf("Total Items: %d", len(mw.currentObjects)))
+	filtered := len(mw.currentObjects)
+	all := len(mw.allObjects)
+	if filtered != all {
+		mw.itemsLabel.SetText(fmt.Sprintf("Items: %d of %d total", filtered, all))
+		return
+	}
+
+	mw.itemsLabel.SetText(fmt.Sprintf("Total Items: %d", all))
 }
 
 func (mw *MainWindow) createObjectList() *widget.Table {
@@ -98,13 +105,14 @@ func (mw *MainWindow) createObjectList() *widget.Table {
 		func() fyne.CanvasObject {
 			return container.NewStack(
 				widget.NewCheck("", nil),
-				widget.NewLabel("Objects"),
+				widget.NewLabel(""),
 			)
 		},
 		func(id widget.TableCellID, co fyne.CanvasObject) {
 			box := co.(*fyne.Container)
 			check := box.Objects[0].(*widget.Check)
 			label := box.Objects[1].(*widget.Label)
+
 			obj := mw.currentObjects[id.Row]
 
 			switch id.Col {
@@ -112,7 +120,6 @@ func (mw *MainWindow) createObjectList() *widget.Table {
 				check.Show()
 				check.Refresh()
 				label.Hide()
-
 				check.OnChanged = func(checked bool) {
 					if checked {
 						mw.updateSelect(id.Row, true)
@@ -122,14 +129,17 @@ func (mw *MainWindow) createObjectList() *widget.Table {
 				}
 			case 1:
 				check.Hide()
-				label.TextStyle = fyne.TextStyle{Bold: true}
+				label.Show()
+				//label.TextStyle = fyne.TextStyle{Bold: true}
 				label.Truncation = fyne.TextTruncateEllipsis
 				label.SetText(obj.Key)
 			case 2:
 				check.Hide()
+				label.Show()
 				label.SetText(fmt.Sprintf("%d kB", obj.Size/1024))
 			case 3:
 				check.Hide()
+				label.Show()
 				label.Truncation = fyne.TextTruncateClip
 				label.SetText(obj.LastModified.Format("2006-01-02 15:04:05"))
 			}

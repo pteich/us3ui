@@ -37,7 +37,18 @@ func (m *Manager) Get(index int) config.S3Config {
 }
 
 func (m *Manager) Add(cfg config.S3Config) {
-	m.connections = append(m.connections, cfg)
+	found := false
+	for i, c := range m.connections {
+		if c.Name == cfg.Name {
+			m.connections[i] = cfg
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		m.connections = append(m.connections, cfg)
+	}
 }
 
 func (m *Manager) Remove(index int) {
