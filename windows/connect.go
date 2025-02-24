@@ -74,7 +74,7 @@ func ShowConnectWindow(ctx context.Context, cfg *config.Config, a fyne.App) {
 	secretKeyEntry := widget.NewPasswordEntry()
 	secretKeyEntry.SetText(s3cfg.SecretKey)
 
-	//saveSecretkey := widget.NewCheck("Save secret key in system keyring", nil)
+	// saveSecretkey := widget.NewCheck("Save secret key in system keyring", nil)
 
 	bucketEntry := widget.NewEntry()
 	bucketEntry.SetText(s3cfg.Bucket)
@@ -90,6 +90,7 @@ func ShowConnectWindow(ctx context.Context, cfg *config.Config, a fyne.App) {
 	connectionNameEntry := widget.NewEntry()
 	connectionNameEntry.SetPlaceHolder("Connection Name")
 	connectionNameEntry.SetText(s3cfg.Name)
+	connectionNameEntry.TextStyle = fyne.TextStyle{Bold: true}
 
 	toolbarSaveAction := widget.NewToolbarAction(theme.DocumentSaveIcon(), func() {
 		newcfg := config.S3Config{
@@ -116,11 +117,11 @@ func ShowConnectWindow(ctx context.Context, cfg *config.Config, a fyne.App) {
 	}
 
 	configForm := widget.NewForm([]*widget.FormItem{
-		{Text: "Connection Name", Widget: connectionNameEntry},
+		{Text: "Name", Widget: connectionNameEntry, HintText: "The name is only used to save connection details."},
 		{Text: "Endpoint", Widget: endpointEntry},
 		{Text: "Access Key", Widget: accessKeyEntry},
 		{Text: "Secret Key", Widget: secretKeyEntry},
-		//{Text: "", Widget: saveSecretkey},
+		// {Text: "", Widget: saveSecretkey},
 		{Text: "Bucket Name", Widget: bucketEntry},
 		{Text: "Region", Widget: regionEntry},
 		{Text: "Prefix", Widget: prefixEntry},
@@ -195,7 +196,7 @@ func ShowConnectWindow(ctx context.Context, cfg *config.Config, a fyne.App) {
 
 	// Main Layout
 	connectionPanel := container.NewBorder(listButtons, nil, nil, nil, connectionsList)
-	//connectionPanel := container.NewVBox(listButtons, connectionsList, layout.NewSpacer())
+	// connectionPanel := container.NewVBox(listButtons, connectionsList, layout.NewSpacer())
 	formPanel := container.NewVBox(configForm)
 	split := container.NewHSplit(connectionPanel, formPanel)
 	split.SetOffset(0.3)
