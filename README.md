@@ -6,6 +6,7 @@ Built with Go and Fyne, this application provides a seamless experience across m
 ## Features
 
 - **Universal Compatibility**: Works with any S3-compatible storage service (Minio, Ceph, etc.)
+- **Connection Manager**: Save and manage multiple S3 service configurations
 - **Secure Connections**: Support for both HTTP and HTTPS connections
 - **File Management**:
     - Browse objects in your bucket with size information
@@ -40,25 +41,36 @@ You can download pre-built binaries for Linux, macOS, and Windows from the [GitH
 
 ### Configuration
 
-When you start the application, you'll need to provide:
-- **Endpoint**: Your S3 service endpoint (e.g., "play.min.io")
-- **Access Key**: Your S3 access key
-- **Secret Key**: Your S3 secret key
-- **Bucket Name**: The name of the bucket you want to access
-- **SSL**: Toggle for HTTPS connection (recommended for production use)
+When you start the application, you can use the GUI to manage your connections:
 
-The configuration values can also be preset using CLI flags or environment variables. The available options are:
+1. Create a new connection by providing:
+    - **Name**: A unique name for your connection
+    - **Endpoint**: Your S3 service endpoint (e.g., "play.min.io")
+    - **Access Key**: Your S3 access key
+    - **Secret Key**: Your S3 secret key
+    - **Bucket Name**: The name of the bucket you want to access
+    - **Prefix**: (Optional) A prefix to filter objects in the bucket
+    - **Region**: (Optional) The region of your S3 service
+    - **SSL**: Toggle for HTTPS connection (recommended for production use)
+
+2. Save the connection, which will be stored in a local configuration file. The location of this file depends on your operating system.
+
+3. You can create and save multiple connections for different S3 services or buckets.
+
+The configuration values can also be preset using CLI flags or environment variables. If provided, these will automatically create a special connection named "<Transient>". The available options are:
 
 - **Endpoint**: `--endpoint` or `ENDPOINT`
 - **Access Key**: `--accesskey` or `ACCESS_KEY`
 - **Secret Key**: `--secretkey` or `SECRET_KEY`
 - **Bucket Name**: `--bucket` or `BUCKET`
+- **Prefix**: `--prefix` or `PREFIX`
+- **Region**: `--region` or `REGION`
 - **SSL**: `--usessl` or `USE_SSL`
 
 ### Usage
 
 1. Launch the application
-2. Enter your S3 service configuration details
+2. Select a saved connection or create a new one
 3. Click "Connect" to establish the connection
 4. Use the main interface to:
     - View objects in your bucket with detailed information
