@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>us3ui - Universal S3 File Manager</title>
+
+    <!-- Favicon setup -->
+    <link rel="icon" type="image/svg+xml" href="Icon.svg">
+    <link rel="icon" type="image/png" href="Icon.png">
+    <link rel="apple-touch-icon" href="Icon.png">
+
+    <!-- Social Media Meta Tags -->
+    <meta property="og:title" content="us3ui - Universal S3 File Manager">
+    <meta property="og:description" content="A native cross-platform GUI application for managing any S3-compatible storage service">
+    <meta property="og:image" content="https://raw.githubusercontent.com/pteich/us3ui/main/screenshots/filelist.png">
+    <meta property="og:url" content="https://github.com/pteich/us3ui">
+    <meta property="og:type" content="website">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="us3ui - Universal S3 File Manager">
+    <meta name="twitter:description" content="A native cross-platform GUI application for managing any S3-compatible storage service">
+    <meta name="twitter:image" content="https://raw.githubusercontent.com/pteich/us3ui/main/screenshots/filelist.png">
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --primary: #FFC108;
+            --secondary: #4A4A4A;
+            --dark: #4A4A4A;
+            --light: #f8f9fa;
+            --primary-hover: #FFB300;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+            line-height: 1.6;
+            color: var(--dark);
+        }
+
+        h1, h2, h3, .download-btn {
+            font-family: 'Space Grotesk', sans-serif;
+            letter-spacing: -0.02em;
+        }
+
+        .hero {
+            background: linear-gradient(135deg, var(--secondary), #2d2d2d);
+            color: white;
+            padding: 4rem 2rem;
+            text-align: center;
+        }
+
+        .app-icon {
+            width: 120px;
+            height: 120px;
+            margin-bottom: 2rem;
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+        }
+
+        .hero h1 {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            color: var(--primary);
+            font-weight: 700;
+        }
+
+        .hero p {
+            font-size: 1.25rem;
+            opacity: 0.9;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .hero p:last-of-type {
+            font-size: 1.1rem;
+            opacity: 0.8;
+        }
+
+        .download-btn {
+            display: inline-block;
+            background: var(--primary);
+            color: var(--secondary);
+            padding: 1rem 2rem;
+            border-radius: 0.5rem;
+            text-decoration: none;
+            font-weight: 700;
+            margin-top: 2rem;
+            transition: all 0.2s;
+            font-size: 1.1rem;
+        }
+
+        .download-btn:hover {
+            background: var(--primary-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 193, 8, 0.2);
+        }
+
+        .features {
+            padding: 6rem 0;
+            background: var(--light);
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+
+        .feature-card {
+            background: white;
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            border-top: 4px solid var(--primary);
+            transition: transform 0.2s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-4px);
+        }
+
+        .feature-card h3 {
+            color: var(--secondary);
+            margin-bottom: 1rem;
+            font-size: 1.4rem;
+            font-weight: 600;
+        }
+
+        .screenshots {
+            padding: 6rem 0;
+        }
+
+        .screenshot-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+
+        .screenshot-grid img {
+            width: 100%;
+            border-radius: 1rem;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+            border: 1px solid #eee;
+            transition: transform 0.2s;
+        }
+
+        .screenshot-grid img:hover {
+            transform: scale(1.02);
+        }
+
+        .section-title {
+            text-align: center;
+            margin-bottom: 1rem;
+            color: var(--secondary);
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+
+        .section-title::after {
+            content: '';
+            display: block;
+            width: 60px;
+            height: 4px;
+            background: var(--primary);
+            margin: 1rem auto;
+            border-radius: 2px;
+        }
+
+        footer {
+            background: var(--secondary);
+            color: white;
+            padding: 3rem 0;
+            text-align: center;
+        }
+
+        footer a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        .download-section {
+            margin-top: 2rem;
+        }
+
+        .version {
+            font-family: 'Space Grotesk', sans-serif;
+            color: var(--primary);
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+        }
+
+        .download-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+
+        .download-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: var(--primary);
+            color: var(--secondary);
+            padding: 0.8rem 1.5rem;
+            border-radius: 0.5rem;
+            text-decoration: none;
+            font-weight: 700;
+            transition: all 0.2s;
+            font-size: 1rem;
+        }
+
+        .platform-icon {
+            font-size: 1.2rem;
+        }
+
+        .download-btn:hover {
+            background: var(--primary-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 193, 8, 0.2);
+        }
+
+        .release-notes {
+            display: inline-block;
+            color: var(--primary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-top: 1rem;
+            opacity: 0.8;
+            transition: opacity 0.2s;
+        }
+
+        .release-notes:hover {
+            opacity: 1;
+            text-decoration: underline;
+        }
+
+        footer {
+            background: var(--secondary);
+            color: white;
+            padding: 3rem 0;
+            text-align: center;
+        }
+
+        .footer-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .tech-stack {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .tech-stack p {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .tech-badges {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .tech-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: white;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            background: rgba(255, 255, 255, 0.1);
+            transition: all 0.2s;
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 500;
+        }
+
+        .tech-badge:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .tech-badge img {
+            filter: brightness(1.2);
+        }
+
+        .divider {
+            color: rgba(255, 255, 255, 0.5);
+            font-weight: 300;
+        }
+
+        .repo-info, .license {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        footer a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        footer a:hover {
+            color: var(--primary-hover);
+            text-decoration: underline;
+        }
+
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 3rem;
+            }
+
+            .feature-card {
+                margin: 0 1rem;
+            }
+
+            .screenshot-grid {
+                grid-template-columns: 1fr;
+                padding: 0 1rem;
+            }
+
+            .download-buttons {
+                flex-direction: column;
+                padding: 0 2rem;
+            }
+
+            .download-btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .tech-badges {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+
+            .tech-badge {
+                width: 200px;
+                justify-content: center;
+            }
+
+            .divider {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+<section class="hero">
+    <div class="container">
+        <img src="Icon.svg" alt="us3ui logo" class="app-icon">
+        <h1>us3ui</h1>
+        <p>Universal Cross-Platform S3 File Manager</p>
+        <p>A native application for managing any S3-compatible storage service</p>
+        <div class="download-section">
+            <p class="version">Latest Version: v0.5.1</p>
+            <div class="download-buttons">
+                <a href="https://github.com/pteich/us3ui/releases/latest/download/Universal.s3.GUI.exe.zip" class="download-btn">
+                    <span class="platform-icon">🪟</span>
+                    Download for Windows
+                </a>
+                <a href="https://github.com/pteich/us3ui/releases/latest/download/Universal.s3.GUI.macOS.zip" class="download-btn">
+                    <span class="platform-icon">🍎</span>
+                    Download for macOS
+                </a>
+                <a href="https://github.com/pteich/us3ui/releases/latest/download/Universal.s3.GUI.tar.xz" class="download-btn">
+                    <span class="platform-icon">🐧</span>
+                    Download for Linux
+                </a>
+            </div>
+            <a href="https://github.com/pteich/us3ui/releases/latest" class="release-notes">
+                View Release Notes
+            </a>
+        </div>
+    </div>
+</section>
+
+    <section class="features">
+        <div class="container">
+            <h2 class="section-title">Key Features</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <h3>Universal Compatibility</h3>
+                    <p>Works with any S3-compatible storage service including Minio, Ceph, and more.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Cross-Platform</h3>
+                    <p>Native application available for macOS, Windows, and Linux.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Connection Manager</h3>
+                    <p>Save and manage multiple S3 service configurations easily.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>File Management</h3>
+                    <p>Browse, upload, download, and delete files with ease. Generate temporary download links.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Search & Filter</h3>
+                    <p>Full-text search functionality to find your files quickly.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Progress Tracking</h3>
+                    <p>Visual progress tracking for all operations with responsive UI.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="screenshots">
+        <div class="container">
+            <h2 class="section-title">Screenshots</h2>
+            <div class="screenshot-grid">
+                <img src="screenshots/login.png" alt="Login Screen">
+                <img src="screenshots/filelist.png" alt="File List View">
+                <img src="screenshots/selectfiles.png" alt="File Selection">
+                <img src="screenshots/upload-file.png" alt="Upload Dialog">
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="tech-stack">
+                    <p>Crafted using</p>
+                    <div class="tech-badges">
+                        <a href="https://go.dev" class="tech-badge" target="_blank" rel="noopener noreferrer">
+                            <img src="https://go.dev/images/go-logo-white.svg" alt="Go" height="20">
+                            Go
+                        </a>
+                        <span class="divider">&amp;</span>
+                        <a href="https://fyne.io" class="tech-badge" target="_blank" rel="noopener noreferrer">
+                            <img src="https://fyne.io/img/transparent.png" alt="Fyne" height="20">
+                            Fyne
+                        </a>
+                    </div>
+                </div>
+                <p class="repo-info">Open source project available on <a href="https://github.com/pteich/us3ui">GitHub</a></p>
+                <p class="license">Released under MIT License</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>
