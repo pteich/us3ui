@@ -12,6 +12,7 @@ require (
 require (
 	fyne.io/systray v1.11.0 // indirect
 	github.com/BurntSushi/toml v1.4.0 // indirect
+	github.com/Masterminds/semver/v3 v3.3.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/fredbi/uri v1.1.0 // indirect
@@ -19,7 +20,7 @@ require (
 	github.com/fyne-io/gl-js v0.0.0-20220119005834-d2da28d9ccfe // indirect
 	github.com/fyne-io/glfw-js v0.0.0-20241126112943-313d8a0fe1d0 // indirect
 	github.com/fyne-io/image v0.0.0-20220602074514-4956b0afb3d2 // indirect
-	github.com/go-gl/gl v0.0.0-20211210172815-726fda9656d6 // indirect
+	github.com/go-gl/gl v0.0.0-20231021071112-07e5d0ea2e71 // indirect
 	github.com/go-gl/glfw/v3.3/glfw v0.0.0-20240506104042-037f3cc74f2a // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/go-text/render v0.2.0 // indirect
@@ -36,6 +37,7 @@ require (
 	github.com/minio/md5-simd v1.1.2 // indirect
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect
 	github.com/nicksnyder/go-i18n/v2 v2.4.0 // indirect
+	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/rymdport/portal v0.3.0 // indirect

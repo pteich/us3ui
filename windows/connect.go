@@ -2,47 +2,24 @@ package windows
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"github.com/Masterminds/semver/v3"
+	"github.com/pelletier/go-toml/v2"
 
 	"github.com/pteich/us3ui/config"
 	"github.com/pteich/us3ui/connections"
 	"github.com/pteich/us3ui/s3"
 )
-
-type saveConnectionLayout struct {
-	padding float32
-}
-
-func (c *saveConnectionLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
-	if len(objects) != 2 {
-		return
-	}
-
-	availableWidth := size.Width - c.padding
-
-	objects[0].Resize(fyne.NewSize(availableWidth*0.7, size.Height))
-	objects[0].Move(fyne.NewPos(0, 0))
-	objects[1].Resize(fyne.NewSize(availableWidth*0.3, size.Height))
-	objects[1].Move(fyne.NewPos(availableWidth*0.7+c.padding, 0))
-}
-
-func (c *saveConnectionLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
-	minWidth := float32(0)
-	minHeight := float32(0)
-	for _, child := range objects {
-		childMin := child.MinSize()
-		minWidth += childMin.Width
-		if childMin.Height > minHeight {
-			minHeight = childMin.Height
-		}
-	}
-	return fyne.NewSize(minWidth, minHeight)
-}
 
 func ShowConnectWindow(ctx context.Context, cfg *config.Config, a fyne.App) {
 	configWin := a.NewWindow("S3 Server Connection")
@@ -238,5 +215,78 @@ func ShowConnectWindow(ctx context.Context, cfg *config.Config, a fyne.App) {
 
 	configWin.SetContent(split)
 	configWin.Resize(fyne.NewSize(700, 400))
+
+	checkVersion(configWin)
+
 	configWin.ShowAndRun()
+}
+
+type AppInfo struct {
+	Details struct {
+		Version string `toml:"version"`
+	} `toml:"details"`
+}
+
+func checkVersion(w fyne.Window) {
+	req, err := http.NewRequest(http.MethodGet, "https://raw.githubusercontent.com/pteich/us3ui/refs/heads/main/FyneApp.toml", nil)
+	if err != nil {
+		fmt.Println("Error creating request: ", err)
+		return
+	}
+	req.Header.Set("User-Agent", config.Name)
+
+	tr := &http.Transport{
+		MaxIdleConns:       10,
+		IdleConnTimeout:    30 * time.Second,
+		DisableCompression: false,
+	}
+	client := &http.Client{Transport: tr}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println("Error sending request: ", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	ai := AppInfo{}
+
+	data, _ := io.ReadAll(resp.Body)
+	err = toml.Unmarshal(data, &ai)
+	if err != nil {
+		fmt.Println("Error decoding response: ", err)
+		return
+	}
+
+	verRemote, err := semver.NewVersion(ai.Details.Version)
+	if err != nil {
+		fmt.Println("Error parsing version: ", ai.Details.Version, err)
+		return
+	}
+
+	verLocal, err := semver.NewVersion(fyne.CurrentApp().Metadata().Version)
+	if err != nil {
+		fmt.Println("Error parsing version: ", fyne.CurrentApp().Metadata().Version, err)
+		return
+	}
+
+	if verRemote.GreaterThan(verLocal) {
+		downloadLabel := "Download"
+		abortLabel := "Abort"
+		message := "A new version of us3ui is available.\n\n" +
+			"Current Version: " + fyne.CurrentApp().Metadata().Version + "\n" +
+			"Latest Version: " + ai.Details.Version + "\n\n" +
+			"Do you want to download it from GitHub?"
+		dialog.NewCustomConfirm("New Version Available", downloadLabel, abortLabel,
+			widget.NewLabel(message), func(confirm bool) {
+				if confirm {
+					u, err := url.Parse("https://github.com/pteich/us3ui/releases")
+					if err != nil {
+						fmt.Println("Error parsing URL:", err)
+						return
+					}
+					_ = fyne.CurrentApp().OpenURL(u)
+				}
+			}, w).Show()
+	}
 }
