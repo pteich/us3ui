@@ -270,12 +270,15 @@ func (mw *MainWindow) filterObjects() []minio.ObjectInfo {
 		return mw.allObjects
 	}
 
-	var filteredObjects []minio.ObjectInfo
+	searchTermLower := strings.ToLower(mw.searchTerm)
+	filteredObjects := make([]minio.ObjectInfo, 0, len(mw.allObjects)/2)
+
 	for _, obj := range mw.allObjects {
-		if strings.Contains(strings.ToLower(obj.Key), strings.ToLower(mw.searchTerm)) {
+		if strings.Contains(strings.ToLower(obj.Key), searchTermLower) {
 			filteredObjects = append(filteredObjects, obj)
 		}
 	}
+
 	return filteredObjects
 }
 
@@ -315,11 +318,13 @@ func (mw *MainWindow) removeObject(key string) {
 }
 
 func (mw *MainWindow) updateObjectList() {
-	mw.currentObjects = mw.filterObjects()
-	mw.selectedIndex = nil
-	mw.objectList.UnselectAll()
-	mw.objectList.Refresh()
-	mw.updateItemsLabel()
+	fyne.Do(func() {
+		mw.currentObjects = mw.filterObjects()
+		mw.selectedIndex = nil
+		mw.objectList.UnselectAll()
+		mw.objectList.Refresh()
+		mw.updateItemsLabel()
+	})
 }
 
 func (mw *MainWindow) loadObjects(ctx context.Context) {
@@ -329,8 +334,12 @@ func (mw *MainWindow) loadObjects(ctx context.Context) {
 	mw.searchInput.SetText("")
 
 	go func() {
-		defer mw.progressBar.Hide()
-		defer mw.stopBtn.Hide()
+		defer func() {
+			fyne.Do(func() {
+				mw.progressBar.Hide()
+				mw.stopBtn.Hide()
+			})
+		}()
 
 		var err error
 		mw.allObjects = []minio.ObjectInfo{}
@@ -345,8 +354,10 @@ func (mw *MainWindow) loadObjects(ctx context.Context) {
 
 			mw.allObjects = append(mw.allObjects, batch...)
 
-			progress := float64(len(mw.allObjects)) / float64(len(mw.allObjects)+len(batch))
-			mw.progressBar.SetValue(progress)
+			fyne.Do(func() {
+				progress := float64(len(mw.allObjects)) / float64(len(mw.allObjects)+len(batch))
+				mw.progressBar.SetValue(progress)
+			})
 
 			if len(batch) < batchSize {
 				break

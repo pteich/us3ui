@@ -38,5 +38,6 @@ func main() {
 		return
 	}
 
-	windows.ShowConnectWindow(ctx, cfg, a)
+	connectWin := windows.NewConnectWindow(a, cfg)
+	connectWin.Show(ctx)
 }

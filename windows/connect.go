@@ -21,213 +21,256 @@ import (
 	"github.com/pteich/us3ui/s3"
 )
 
-func ShowConnectWindow(ctx context.Context, cfg *config.Config, a fyne.App) {
-	configWin := a.NewWindow("S3 Server Connection")
-	configWin.CenterOnScreen()
+type ConnectWindow struct {
+	app                 fyne.App
+	window              fyne.Window
+	cfg                 *config.Config
+	connectionManager   *connections.Manager
+	connectionsList     *widget.List
+	toolbarSaveAction   *widget.ToolbarAction
+	toolbarDeleteAction *widget.ToolbarAction
+	toolbarCopyAction   *widget.ToolbarAction
 
-	connectionManager := connections.NewManager(cfg)
+	// Form Entries
+	connectionNameEntry *widget.Entry
+	endpointEntry       *widget.Entry
+	accessKeyEntry      *widget.Entry
+	secretKeyEntry      *widget.Entry
+	bucketEntry         *widget.Entry
+	prefixEntry         *widget.Entry
+	regionEntry         *widget.Entry
+	sslCheck            *widget.Check
+}
+
+func NewConnectWindow(a fyne.App, cfg *config.Config) *ConnectWindow {
+	window := a.NewWindow("S3 Server Connection")
+	window.CenterOnScreen()
+
+	return &ConnectWindow{
+		app:    a,
+		window: window,
+		cfg:    cfg,
+	}
+}
+
+func (cw *ConnectWindow) Show(ctx context.Context) {
+	cw.connectionManager = connections.NewManager(cw.cfg)
 	defer func() {
-		err := connectionManager.Save()
-		if err != nil {
-			dialog.ShowError(err, configWin)
+		if err := cw.connectionManager.Save(); err != nil {
+			dialog.ShowError(err, cw.window)
 		}
 	}()
 
-	connectionsList := widget.NewList(
-		func() int { return connectionManager.Count() },
-		func() fyne.CanvasObject { return widget.NewLabel("") },
-		func(i widget.ListItemID, o fyne.CanvasObject) {
-			o.(*widget.Label).SetText(connectionManager.Get(i).Name)
-		},
-	)
-	connectionsList.Resize(fyne.NewSize(300, 200))
-	connectionsList.Refresh()
+	cw.setupGUI()
+	cw.checkVersion()
+	cw.window.ShowAndRun()
+}
 
-	// Configuration Form
-	s3cfg := config.S3Config{}
-	if connectionManager.GetSelected() >= 0 {
-		s3cfg = connectionManager.Get(connectionManager.GetSelected())
-	}
+func (cw *ConnectWindow) setupGUI() {
+	cw.connectionsList = cw.createConnectionsList()
+	cw.createFormEntries()
+	cw.createToolbarActions()
 
-	endpointEntry := widget.NewEntry()
-	endpointEntry.SetPlaceHolder("endpoint with optional port")
-	endpointEntry.SetText(s3cfg.Endpoint)
-	accessKeyEntry := widget.NewEntry()
-	accessKeyEntry.SetText(s3cfg.AccessKey)
-	secretKeyEntry := widget.NewPasswordEntry()
-	secretKeyEntry.SetText(s3cfg.SecretKey)
+	listButtons := cw.createListButtons()
+	connectionPanel := container.NewBorder(listButtons, nil, nil, nil, cw.connectionsList)
+	formPanel := container.NewVBox(cw.createConfigForm())
 
-	// saveSecretkey := widget.NewCheck("Save secret key in system keyring", nil)
-
-	bucketEntry := widget.NewEntry()
-	bucketEntry.SetText(s3cfg.Bucket)
-	prefixEntry := widget.NewEntry()
-	prefixEntry.SetPlaceHolder("Optional Prefix")
-	prefixEntry.SetText(s3cfg.Prefix)
-	regionEntry := widget.NewEntry()
-	regionEntry.SetPlaceHolder("Optional Region")
-	regionEntry.SetText(s3cfg.Region)
-	sslCheck := widget.NewCheck("Use SSL (HTTPS)", nil)
-	sslCheck.SetChecked(s3cfg.UseSSL)
-
-	connectionNameEntry := widget.NewEntry()
-	connectionNameEntry.SetPlaceHolder("Connection Name")
-	connectionNameEntry.SetText(s3cfg.Name)
-	connectionNameEntry.TextStyle = fyne.TextStyle{Bold: true}
-
-	toolbarSaveAction := widget.NewToolbarAction(theme.DocumentSaveIcon(), func() {
-		newcfg := config.S3Config{
-			Endpoint:  endpointEntry.Text,
-			AccessKey: accessKeyEntry.Text,
-			SecretKey: secretKeyEntry.Text,
-			Bucket:    bucketEntry.Text,
-			UseSSL:    sslCheck.Checked,
-			Prefix:    prefixEntry.Text,
-			Region:    regionEntry.Text,
-			Name:      connectionNameEntry.Text,
-		}
-		connectionManager.Add(newcfg)
-		connectionsList.Refresh()
-	})
-	toolbarSaveAction.Disable()
-
-	connectionNameEntry.OnChanged = func(name string) {
-		if name == "" {
-			toolbarSaveAction.Disable()
-		} else {
-			toolbarSaveAction.Enable()
-		}
-	}
-
-	configForm := widget.NewForm([]*widget.FormItem{
-		{Text: "Name", Widget: connectionNameEntry, HintText: "The name is only used to save connection details."},
-		{Text: "Endpoint", Widget: endpointEntry},
-		{Text: "Access Key", Widget: accessKeyEntry},
-		{Text: "Secret Key", Widget: secretKeyEntry},
-		// {Text: "", Widget: saveSecretkey},
-		{Text: "Bucket Name", Widget: bucketEntry},
-		{Text: "Region", Widget: regionEntry},
-		{Text: "Prefix", Widget: prefixEntry},
-		{Text: "", Widget: sslCheck},
-	}...)
-	configForm.OnSubmit = func() {
-		s3Cfg := config.S3Config{
-			Endpoint:  endpointEntry.Text,
-			AccessKey: accessKeyEntry.Text,
-			SecretKey: secretKeyEntry.Text,
-			Bucket:    bucketEntry.Text,
-			UseSSL:    sslCheck.Checked,
-			Prefix:    prefixEntry.Text,
-			Region:    regionEntry.Text,
-			Name:      connectionNameEntry.Text,
-		}
-
-		configWin.Hide()
-
-		s3svc, err := s3.New(s3Cfg)
-		if err != nil {
-			dialog.ShowError(err, configWin)
-			return
-		}
-
-		mainWin := NewMainWindow(a, s3svc)
-		mainWin.Show(ctx)
-	}
-	configForm.OnCancel = func() {
-		a.Quit()
-	}
-	configForm.SubmitText = "Connect"
-	configForm.CancelText = "Abort"
-
-	toolbarDeleteAction := widget.NewToolbarAction(theme.ContentRemoveIcon(), func() {
-		connectionManager.Remove(connectionManager.GetSelected())
-		connectionsList.Refresh()
-	})
-	toolbarDeleteAction.Disable()
-
-	toolbarAddAction := widget.NewToolbarAction(theme.ContentAddIcon(), func() {
-		connectionManager.SetSelected(-1)
-		selectedCfg := config.S3Config{}
-		connectionNameEntry.SetText(selectedCfg.Name)
-		endpointEntry.SetText(selectedCfg.Endpoint)
-		accessKeyEntry.SetText(selectedCfg.AccessKey)
-		secretKeyEntry.SetText(selectedCfg.SecretKey)
-		bucketEntry.SetText(selectedCfg.Bucket)
-		prefixEntry.SetText(selectedCfg.Prefix)
-		regionEntry.SetText(selectedCfg.Region)
-		sslCheck.SetChecked(selectedCfg.UseSSL)
-		connectionNameEntry.SetText(selectedCfg.Name)
-		toolbarSaveAction.Disable()
-		toolbarDeleteAction.Disable()
-	})
-	toolbarCopyAction := widget.NewToolbarAction(theme.ContentCopyIcon(), func() {
-		selectedCfg := connectionManager.Get(connectionManager.GetSelected())
-		newCfg := selectedCfg
-		newCfg.Name = "Copy of " + selectedCfg.Name
-
-		newNameEntry := widget.NewEntry()
-		newNameEntry.SetText(newCfg.Name)
-		dialog.ShowCustomConfirm("New connection name", "Copy Connection", "Abort", newNameEntry, func(b bool) {
-			if b {
-				newCfg.Name = newNameEntry.Text
-				connectionManager.Add(newCfg)
-				connectionsList.Refresh()
-			}
-		}, configWin)
-	})
-	toolbarCopyAction.Disable()
-
-	listButtons := widget.NewToolbar(
-		toolbarAddAction,
-		toolbarDeleteAction,
-		toolbarCopyAction,
-		widget.NewToolbarSpacer(),
-		toolbarSaveAction,
-	)
-
-	connectionsList.OnSelected = func(id widget.ListItemID) {
-		selectedCfg := connectionManager.Get(id)
-		connectionManager.SetSelected(id)
-		connectionNameEntry.SetText(selectedCfg.Name)
-		endpointEntry.SetText(selectedCfg.Endpoint)
-		accessKeyEntry.SetText(selectedCfg.AccessKey)
-		secretKeyEntry.SetText(selectedCfg.SecretKey)
-		bucketEntry.SetText(selectedCfg.Bucket)
-		prefixEntry.SetText(selectedCfg.Prefix)
-		regionEntry.SetText(selectedCfg.Region)
-		sslCheck.SetChecked(selectedCfg.UseSSL)
-		connectionNameEntry.SetText(selectedCfg.Name)
-		toolbarDeleteAction.Enable()
-		toolbarCopyAction.Enable()
-	}
-	connectionsList.OnUnselected = func(id widget.ListItemID) {
-		toolbarDeleteAction.Disable()
-		toolbarCopyAction.Disable()
-		connectionManager.SetSelected(-1)
-	}
-
-	// Main Layout
-	connectionPanel := container.NewBorder(listButtons, nil, nil, nil, connectionsList)
-	// connectionPanel := container.NewVBox(listButtons, connectionsList, layout.NewSpacer())
-	formPanel := container.NewVBox(configForm)
 	split := container.NewHSplit(connectionPanel, formPanel)
 	split.SetOffset(0.3)
 
-	configWin.SetContent(split)
-	configWin.Resize(fyne.NewSize(700, 400))
-
-	checkVersion(configWin)
-
-	configWin.ShowAndRun()
+	cw.window.SetContent(split)
+	cw.window.Resize(fyne.NewSize(700, 400))
 }
 
-type AppInfo struct {
-	Details struct {
-		Version string `toml:"version"`
-	} `toml:"details"`
+func (cw *ConnectWindow) createConnectionsList() *widget.List {
+	list := widget.NewList(
+		func() int { return cw.connectionManager.Count() },
+		func() fyne.CanvasObject { return widget.NewLabel("") },
+		func(i widget.ListItemID, o fyne.CanvasObject) {
+			o.(*widget.Label).SetText(cw.connectionManager.Get(i).Name)
+		},
+	)
+	list.Resize(fyne.NewSize(300, 200))
+	list.OnSelected = cw.handleListSelection
+	list.OnUnselected = cw.handleListUnselection
+	return list
 }
 
-func checkVersion(w fyne.Window) {
+func (cw *ConnectWindow) createFormEntries() {
+	cw.connectionNameEntry = widget.NewEntry()
+	cw.connectionNameEntry.SetPlaceHolder("Connection Name")
+	cw.connectionNameEntry.TextStyle = fyne.TextStyle{Bold: true}
+	cw.connectionNameEntry.OnChanged = cw.handleNameChange
+
+	cw.endpointEntry = widget.NewEntry()
+	cw.endpointEntry.SetPlaceHolder("endpoint with optional port")
+
+	cw.accessKeyEntry = widget.NewEntry()
+	cw.secretKeyEntry = widget.NewPasswordEntry()
+
+	cw.bucketEntry = widget.NewEntry()
+	cw.prefixEntry = widget.NewEntry()
+	cw.prefixEntry.SetPlaceHolder("Optional Prefix")
+
+	cw.regionEntry = widget.NewEntry()
+	cw.regionEntry.SetPlaceHolder("Optional Region")
+
+	cw.sslCheck = widget.NewCheck("Use SSL (HTTPS)", nil)
+}
+
+func (cw *ConnectWindow) createConfigForm() *widget.Form {
+	form := widget.NewForm([]*widget.FormItem{
+		{Text: "Name", Widget: cw.connectionNameEntry, HintText: "The name is only used to save connection details."},
+		{Text: "Endpoint", Widget: cw.endpointEntry},
+		{Text: "Access Key", Widget: cw.accessKeyEntry},
+		{Text: "Secret Key", Widget: cw.secretKeyEntry},
+		{Text: "Bucket Name", Widget: cw.bucketEntry},
+		{Text: "Region", Widget: cw.regionEntry},
+		{Text: "Prefix", Widget: cw.prefixEntry},
+		{Text: "", Widget: cw.sslCheck},
+	}...)
+
+	form.OnSubmit = cw.handleFormSubmit
+	form.OnCancel = cw.app.Quit
+	form.SubmitText = "Connect"
+	form.CancelText = "Abort"
+
+	return form
+}
+
+func (cw *ConnectWindow) createToolbarActions() {
+	cw.toolbarSaveAction = widget.NewToolbarAction(theme.DocumentSaveIcon(), cw.handleSave)
+	cw.toolbarSaveAction.Disable()
+
+	cw.toolbarDeleteAction = widget.NewToolbarAction(theme.ContentRemoveIcon(), cw.handleDelete)
+	cw.toolbarDeleteAction.Disable()
+
+	cw.toolbarCopyAction = widget.NewToolbarAction(theme.ContentCopyIcon(), cw.handleCopy)
+	cw.toolbarCopyAction.Disable()
+}
+
+func (cw *ConnectWindow) createListButtons() *widget.Toolbar {
+	return widget.NewToolbar(
+		widget.NewToolbarAction(theme.ContentAddIcon(), cw.handleAdd),
+		cw.toolbarDeleteAction,
+		cw.toolbarCopyAction,
+		widget.NewToolbarSpacer(),
+		cw.toolbarSaveAction,
+	)
+}
+
+func (cw *ConnectWindow) handleListSelection(id widget.ListItemID) {
+	selectedCfg := cw.connectionManager.Get(id)
+	cw.connectionManager.SetSelected(id)
+	cw.connectionNameEntry.SetText(selectedCfg.Name)
+	cw.endpointEntry.SetText(selectedCfg.Endpoint)
+	cw.accessKeyEntry.SetText(selectedCfg.AccessKey)
+	cw.secretKeyEntry.SetText(selectedCfg.SecretKey)
+	cw.bucketEntry.SetText(selectedCfg.Bucket)
+	cw.prefixEntry.SetText(selectedCfg.Prefix)
+	cw.regionEntry.SetText(selectedCfg.Region)
+	cw.sslCheck.SetChecked(selectedCfg.UseSSL)
+	cw.connectionNameEntry.SetText(selectedCfg.Name)
+	cw.toolbarDeleteAction.Enable()
+	cw.toolbarCopyAction.Enable()
+}
+
+func (cw *ConnectWindow) handleListUnselection(id widget.ListItemID) {
+	cw.connectionManager.SetSelected(-1)
+	cw.toolbarDeleteAction.Disable()
+	cw.toolbarCopyAction.Disable()
+}
+
+func (cw *ConnectWindow) handleFormSubmit() {
+	s3Cfg := config.S3Config{
+		Endpoint:  cw.endpointEntry.Text,
+		AccessKey: cw.accessKeyEntry.Text,
+		SecretKey: cw.secretKeyEntry.Text,
+		Bucket:    cw.bucketEntry.Text,
+		UseSSL:    cw.sslCheck.Checked,
+		Prefix:    cw.prefixEntry.Text,
+		Region:    cw.regionEntry.Text,
+		Name:      cw.connectionNameEntry.Text,
+	}
+
+	cw.window.Hide()
+
+	s3svc, err := s3.New(s3Cfg)
+	if err != nil {
+		dialog.ShowError(err, cw.window)
+		return
+	}
+
+	mainWin := NewMainWindow(cw.app, s3svc)
+	mainWin.Show(context.Background())
+}
+
+func (cw *ConnectWindow) handleNameChange(name string) {
+	if name == "" {
+		cw.toolbarSaveAction.Disable()
+	} else {
+		cw.toolbarSaveAction.Enable()
+	}
+}
+
+func (cw *ConnectWindow) handleSave() {
+	newcfg := config.S3Config{
+		Endpoint:  cw.endpointEntry.Text,
+		AccessKey: cw.accessKeyEntry.Text,
+		SecretKey: cw.secretKeyEntry.Text,
+		Bucket:    cw.bucketEntry.Text,
+		UseSSL:    cw.sslCheck.Checked,
+		Prefix:    cw.prefixEntry.Text,
+		Region:    cw.regionEntry.Text,
+		Name:      cw.connectionNameEntry.Text,
+	}
+	cw.connectionManager.Add(newcfg)
+	cw.connectionsList.Refresh()
+}
+
+func (cw *ConnectWindow) handleDelete() {
+	selectedID := cw.connectionManager.GetSelected()
+	if selectedID == -1 {
+		return
+	}
+	cw.connectionManager.Remove(selectedID)
+	cw.connectionsList.Refresh()
+}
+
+func (cw *ConnectWindow) handleCopy() {
+	selectedCfg := cw.connectionManager.Get(cw.connectionManager.GetSelected())
+	newCfg := selectedCfg
+	newCfg.Name = "Copy of " + selectedCfg.Name
+
+	newNameEntry := widget.NewEntry()
+	newNameEntry.SetText(newCfg.Name)
+	dialog.ShowCustomConfirm("New connection name", "Copy Connection", "Abort", newNameEntry, func(b bool) {
+		if b {
+			newCfg.Name = newNameEntry.Text
+			cw.connectionManager.Add(newCfg)
+			cw.connectionsList.Refresh()
+		}
+	}, cw.window)
+}
+
+func (cw *ConnectWindow) handleAdd() {
+	cw.connectionManager.SetSelected(-1)
+	selectedCfg := config.S3Config{}
+	cw.connectionNameEntry.SetText(selectedCfg.Name)
+	cw.endpointEntry.SetText(selectedCfg.Endpoint)
+	cw.accessKeyEntry.SetText(selectedCfg.AccessKey)
+	cw.secretKeyEntry.SetText(selectedCfg.SecretKey)
+	cw.bucketEntry.SetText(selectedCfg.Bucket)
+	cw.prefixEntry.SetText(selectedCfg.Prefix)
+	cw.regionEntry.SetText(selectedCfg.Region)
+	cw.sslCheck.SetChecked(selectedCfg.UseSSL)
+	cw.connectionNameEntry.SetText(selectedCfg.Name)
+	cw.toolbarSaveAction.Disable()
+	cw.toolbarDeleteAction.Disable()
+	cw.toolbarCopyAction.Disable()
+}
+
+func (cw *ConnectWindow) checkVersion() {
 	req, err := http.NewRequest(http.MethodGet, "https://raw.githubusercontent.com/pteich/us3ui/refs/heads/main/FyneApp.toml", nil)
 	if err != nil {
 		fmt.Println("Error creating request: ", err)
@@ -280,13 +323,13 @@ func checkVersion(w fyne.Window) {
 		dialog.NewCustomConfirm("New Version Available", downloadLabel, abortLabel,
 			widget.NewLabel(message), func(confirm bool) {
 				if confirm {
-					u, err := url.Parse("https://github.com/pteich/us3ui/releases")
+					u, err := url.Parse("https://us3ui.pteich.de")
 					if err != nil {
 						fmt.Println("Error parsing URL:", err)
 						return
 					}
 					_ = fyne.CurrentApp().OpenURL(u)
 				}
-			}, w).Show()
+			}, cw.window).Show()
 	}
 }
