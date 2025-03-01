@@ -45,6 +45,7 @@ type MainWindow struct {
 	deleteBtn   *widget.Button
 	downloadBtn *widget.Button
 	linkBtn     *widget.Button
+	tree        *widget.Tree
 }
 
 func NewMainWindow(a fyne.App, s3svc *s3.Service) *MainWindow {
@@ -90,6 +91,7 @@ func (mw *MainWindow) setupGUI(ctx context.Context) {
 	tree.Select("all")
 
 	mw.treeData = treeData
+	mw.tree = tree
 
 	content := container.NewBorder(topContainer, container.NewPadded(bottomContainer), nil, nil, listContent)
 	mw.window.SetContent(content)
@@ -421,12 +423,13 @@ func (mw *MainWindow) removeObject(key string) {
 func (mw *MainWindow) updateObjectList() {
 	mw.currentObjects = mw.filterObjects()
 	mw.selectedIndex = nil
+	mw.updateTree()
 	fyne.Do(func() {
 		mw.objectList.UnselectAll()
 		mw.objectList.Refresh()
 		mw.updateItemsLabel()
+		mw.tree.Refresh()
 	})
-	mw.updateTree()
 }
 
 func (mw *MainWindow) loadObjects(ctx context.Context) {
