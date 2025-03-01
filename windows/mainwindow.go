@@ -11,6 +11,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
@@ -23,14 +24,18 @@ import (
 const batchSize = 150
 
 type MainWindow struct {
-	app                 fyne.App
-	window              fyne.Window
-	s3svc               *s3.Service
-	currentObjects      []minio.ObjectInfo
-	allObjects          []minio.ObjectInfo
-	selectedIndex       map[int]bool
-	searchTerm          string
-	searchDebounceTimer *time.Timer
+	app                  fyne.App
+	window               fyne.Window
+	s3svc                *s3.Service
+	currentObjects       []minio.ObjectInfo
+	allObjects           []minio.ObjectInfo
+	selectedDirStructure []string
+	selectedIndex        map[int]bool
+	prefixes             map[string]bool
+	selectedPrefix       string
+	searchTerm           string
+	treeData             binding.StringTree
+	searchDebounceTimer  *time.Timer
 
 	itemsLabel  *widget.Label
 	objectList  *widget.Table
@@ -75,9 +80,41 @@ func (mw *MainWindow) setupGUI(ctx context.Context) {
 	btnBar := mw.createButtonBar(ctx)
 	topContainer := mw.createTopContainer(btnBar)
 
-	content := container.NewBorder(topContainer, container.NewPadded(bottomContainer), nil, nil, mw.objectList)
+	treeData := binding.NewStringTree()
+	tree := mw.createDirTree(treeData)
+	listContent := container.NewHSplit(tree, mw.objectList)
+	listContent.SetOffset(0.2)
+
+	treeData.Append("", "all", "All (Flat view)")
+	treeData.Append("", "root", "Root")
+	tree.Select("all")
+
+	mw.treeData = treeData
+
+	content := container.NewBorder(topContainer, container.NewPadded(bottomContainer), nil, nil, listContent)
 	mw.window.SetContent(content)
-	mw.window.Resize(fyne.NewSize(800, 400))
+	mw.window.Resize(fyne.NewSize(950, 500))
+}
+
+func (mw *MainWindow) createDirTree(data binding.DataTree) *widget.Tree {
+	tree := widget.NewTreeWithData(data, func(b bool) fyne.CanvasObject {
+		w := widget.NewLabel("Tree Item")
+		w.Truncation = fyne.TextTruncateEllipsis
+		return w
+	}, func(i binding.DataItem, b bool, o fyne.CanvasObject) {
+		o.(*widget.Label).Bind(i.(binding.String))
+	})
+
+	tree.OnUnselected = func(id string) {
+		//	mw.selectedDirStructure = strings.Split(id, "/")
+		//	mw.updateObjectList()
+	}
+	tree.OnSelected = func(id string) {
+		mw.selectedPrefix = id
+		mw.updateObjectList()
+	}
+
+	return tree
 }
 
 func (mw *MainWindow) createItemsLabel() *widget.Label {
@@ -146,10 +183,10 @@ func (mw *MainWindow) createObjectList() *widget.Table {
 		},
 	)
 
-	objectList.SetColumnWidth(0, 40)
-	objectList.SetColumnWidth(1, 400)
-	objectList.SetColumnWidth(2, 100)
-	objectList.SetColumnWidth(3, 210)
+	objectList.SetColumnWidth(0, 35)
+	objectList.SetColumnWidth(1, 370)
+	objectList.SetColumnWidth(2, 90)
+	objectList.SetColumnWidth(3, 200)
 	objectList.ShowHeaderColumn = false
 	objectList.CreateHeader = func() fyne.CanvasObject {
 		b := widget.NewButton("", func() {})
@@ -265,8 +302,67 @@ func (mw *MainWindow) createTopContainer(btnBar *fyne.Container) *fyne.Container
 	return container.NewVBox(btnBar, container.NewPadded(searchBar))
 }
 
+func (mw *MainWindow) updateTree() {
+	if mw.treeData == nil {
+		return
+	}
+
+	ids := make(map[string][]string)
+	values := make(map[string]string)
+
+	ids[""] = []string{"all", "root"}
+	values["all"] = "All (Flat view)"
+	values["root"] = "Root"
+
+	rootChildren := make([]string, 0)
+
+	for prefix := range mw.prefixes {
+		parts := strings.Split(prefix, "/")
+		currentPath := ""
+
+		for i, part := range parts {
+			parentPath := currentPath
+			if i > 0 {
+				currentPath += "/"
+			}
+			currentPath += part
+
+			if i == 0 {
+				if !contains(rootChildren, currentPath) {
+					rootChildren = append(rootChildren, currentPath)
+				}
+				values[currentPath] = part
+				continue
+			}
+
+			if _, exists := ids[parentPath]; !exists {
+				ids[parentPath] = make([]string, 0)
+			}
+			if !contains(ids[parentPath], currentPath) {
+				ids[parentPath] = append(ids[parentPath], currentPath)
+				values[currentPath] = part
+			}
+		}
+	}
+
+	ids["root"] = rootChildren
+
+	if err := mw.treeData.Set(ids, values); err != nil {
+		fmt.Printf("Error updating tree: %v\n", err)
+	}
+}
+
+func contains(slice []string, str string) bool {
+	for _, v := range slice {
+		if v == str {
+			return true
+		}
+	}
+	return false
+}
+
 func (mw *MainWindow) filterObjects() []minio.ObjectInfo {
-	if mw.searchTerm == "" {
+	if mw.searchTerm == "" && (mw.selectedPrefix == "" || mw.selectedPrefix == "all") {
 		return mw.allObjects
 	}
 
@@ -274,7 +370,12 @@ func (mw *MainWindow) filterObjects() []minio.ObjectInfo {
 	filteredObjects := make([]minio.ObjectInfo, 0, len(mw.allObjects)/2)
 
 	for _, obj := range mw.allObjects {
-		if strings.Contains(strings.ToLower(obj.Key), searchTermLower) {
+		switch {
+		case (mw.selectedPrefix == "" || mw.selectedPrefix == "all") && strings.Contains(strings.ToLower(obj.Key), searchTermLower):
+			fallthrough
+		case searchTermLower == "" && strings.HasPrefix(obj.Key, mw.selectedPrefix):
+			fallthrough
+		case strings.HasPrefix(obj.Key, mw.selectedPrefix) && strings.Contains(strings.ToLower(obj.Key), searchTermLower):
 			filteredObjects = append(filteredObjects, obj)
 		}
 	}
@@ -318,13 +419,14 @@ func (mw *MainWindow) removeObject(key string) {
 }
 
 func (mw *MainWindow) updateObjectList() {
+	mw.currentObjects = mw.filterObjects()
+	mw.selectedIndex = nil
 	fyne.Do(func() {
-		mw.currentObjects = mw.filterObjects()
-		mw.selectedIndex = nil
 		mw.objectList.UnselectAll()
 		mw.objectList.Refresh()
 		mw.updateItemsLabel()
 	})
+	mw.updateTree()
 }
 
 func (mw *MainWindow) loadObjects(ctx context.Context) {
@@ -343,6 +445,7 @@ func (mw *MainWindow) loadObjects(ctx context.Context) {
 
 		var err error
 		mw.allObjects = []minio.ObjectInfo{}
+		mw.prefixes = make(map[string]bool)
 		var lastKey string
 
 		for {
@@ -365,6 +468,20 @@ func (mw *MainWindow) loadObjects(ctx context.Context) {
 
 			if len(batch) > 0 {
 				lastKey = batch[len(batch)-1].Key
+			}
+
+			prefix := ""
+			for i := range batch {
+				pos := strings.LastIndex(batch[i].Key, "/")
+				if pos == -1 {
+					continue
+				}
+
+				prefix = batch[i].Key[:pos]
+				_, found := mw.prefixes[prefix]
+				if !found {
+					mw.prefixes[prefix] = true
+				}
 			}
 
 			mw.selectedIndex = nil

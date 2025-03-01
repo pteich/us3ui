@@ -4,11 +4,11 @@ import (
 	"fyne.io/fyne/v2"
 )
 
-type saveConnectionLayout struct {
+type splitLayout struct {
 	padding float32
 }
 
-func (c *saveConnectionLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
+func (c *splitLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 	if len(objects) != 2 {
 		return
 	}
@@ -21,7 +21,7 @@ func (c *saveConnectionLayout) Layout(objects []fyne.CanvasObject, size fyne.Siz
 	objects[1].Move(fyne.NewPos(availableWidth*0.7+c.padding, 0))
 }
 
-func (c *saveConnectionLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
+func (c *splitLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
 	minWidth := float32(0)
 	minHeight := float32(0)
 	for _, child := range objects {
