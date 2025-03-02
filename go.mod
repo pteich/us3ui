@@ -5,6 +5,7 @@ go 1.23.4
 require (
 	fyne.io/fyne/v2 v2.6.0-alpha1
 	github.com/Masterminds/semver/v3 v3.3.1
+	github.com/gabriel-vasile/mimetype v1.4.8
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
 	github.com/minio/minio-go/v7 v7.0.86
 	github.com/pelletier/go-toml/v2 v2.2.3

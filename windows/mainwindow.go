@@ -1,6 +1,7 @@
 package windows
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -16,6 +17,7 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"github.com/gabriel-vasile/mimetype"
 	"github.com/minio/minio-go/v7"
 
 	"github.com/pteich/us3ui/s3"
@@ -52,18 +54,31 @@ func NewMainWindow(a fyne.App, s3svc *s3.Service) *MainWindow {
 	window := a.NewWindow("Universal s3 UI")
 	window.CenterOnScreen()
 	window.SetMaster()
-	window.SetOnDropped(func(p fyne.Position, files []fyne.URI) {
-		// TODO handle dropped files
-	})
 
-	return &MainWindow{
+	mw := &MainWindow{
 		app:    a,
 		s3svc:  s3svc,
 		window: window,
 	}
+
+	return mw
 }
 
 func (mw *MainWindow) Show(ctx context.Context) {
+	mw.window.SetOnDropped(func(p fyne.Position, files []fyne.URI) {
+		for _, file := range files {
+			if file.Scheme() == "file" {
+				f, err := os.Open(file.Path())
+				if err != nil {
+					dialog.ShowError(err, mw.window)
+					continue
+				}
+
+				mw.uploadFile(ctx, f, file)
+			}
+		}
+	})
+
 	mw.setupGUI(ctx)
 	mw.loadObjects(ctx)
 
@@ -71,27 +86,27 @@ func (mw *MainWindow) Show(ctx context.Context) {
 }
 
 func (mw *MainWindow) setupGUI(ctx context.Context) {
+	treeData := binding.NewStringTree()
+	treeData.Append("", "all", "All (Flat view)")
+	treeData.Append("", "root", "Root")
+	mw.treeData = treeData
+
 	mw.itemsLabel = mw.createItemsLabel()
 	mw.objectList = mw.createObjectList()
 	mw.searchInput = mw.createSearchInput()
 	mw.progressBar = mw.createProgressBar()
 	mw.stopBtn = mw.createStopButton()
 
-	bottomContainer := mw.createBottomContainer()
-	btnBar := mw.createButtonBar(ctx)
-	topContainer := mw.createTopContainer(btnBar)
-
-	treeData := binding.NewStringTree()
 	tree := mw.createDirTree(treeData)
+	tree.Select("all")
+	mw.tree = tree
+
 	listContent := container.NewHSplit(tree, mw.objectList)
 	listContent.SetOffset(0.2)
 
-	treeData.Append("", "all", "All (Flat view)")
-	treeData.Append("", "root", "Root")
-	tree.Select("all")
-
-	mw.treeData = treeData
-	mw.tree = tree
+	bottomContainer := mw.createBottomContainer()
+	btnBar := mw.createButtonBar(ctx)
+	topContainer := mw.createTopContainer(btnBar)
 
 	content := container.NewBorder(topContainer, container.NewPadded(bottomContainer), nil, nil, listContent)
 	mw.window.SetContent(content)
@@ -107,10 +122,6 @@ func (mw *MainWindow) createDirTree(data binding.DataTree) *widget.Tree {
 		o.(*widget.Label).Bind(i.(binding.String))
 	})
 
-	tree.OnUnselected = func(id string) {
-		//	mw.selectedDirStructure = strings.Split(id, "/")
-		//	mw.updateObjectList()
-	}
 	tree.OnSelected = func(id string) {
 		mw.selectedPrefix = id
 		mw.updateObjectList()
@@ -159,6 +170,13 @@ func (mw *MainWindow) createObjectList() *widget.Table {
 				check.Show()
 				check.Refresh()
 				label.Hide()
+				if mw.selectedIndex != nil {
+					_, selected := mw.selectedIndex[id.Row]
+					check.Checked = selected
+				} else {
+					check.Checked = false
+				}
+
 				check.OnChanged = func(checked bool) {
 					if checked {
 						mw.updateSelect(id.Row, true)
@@ -214,6 +232,16 @@ func (mw *MainWindow) createObjectList() *widget.Table {
 		case 3:
 			b.SetText("Last Modified")
 		}
+	}
+
+	objectList.OnSelected = func(id widget.TableCellID) {
+		if mw.selectedIndex != nil {
+			_, selected := mw.selectedIndex[id.Row]
+			mw.updateSelect(id.Row, !selected)
+			return
+		}
+
+		mw.updateSelect(id.Row, true)
 	}
 
 	return objectList
@@ -405,6 +433,8 @@ func (mw *MainWindow) updateSelect(idx int, selected bool) {
 			mw.linkBtn.Disable()
 		}
 	}
+	mw.objectList.RefreshItem(widget.TableCellID{Row: idx, Col: 0})
+	mw.objectList.Refresh()
 }
 
 func (mw *MainWindow) removeObject(key string) {
@@ -465,10 +495,6 @@ func (mw *MainWindow) loadObjects(ctx context.Context) {
 				mw.progressBar.SetValue(progress)
 			})
 
-			if len(batch) < batchSize {
-				break
-			}
-
 			if len(batch) > 0 {
 				lastKey = batch[len(batch)-1].Key
 			}
@@ -489,14 +515,15 @@ func (mw *MainWindow) loadObjects(ctx context.Context) {
 
 			mw.selectedIndex = nil
 			mw.updateObjectList()
+
+			if len(batch) < batchSize {
+				break
+			}
 		}
 		if err != nil {
 			dialog.ShowError(err, mw.window)
 			return
 		}
-
-		mw.selectedIndex = nil
-		mw.updateObjectList()
 	}()
 }
 
@@ -539,30 +566,73 @@ func (mw *MainWindow) handleUpload(ctx context.Context) {
 		if err != nil || reader == nil {
 			return
 		}
+
+		mw.uploadFile(ctx, reader, reader.URI())
+	}, mw.window)
+
+	fd.Show()
+}
+
+func (mw *MainWindow) uploadFile(ctx context.Context, reader io.ReadCloser, path fyne.URI) {
+	fullname := path.Name()
+	if mw.selectedPrefix != "root" && mw.selectedPrefix != "all" {
+		fullname = mw.selectedPrefix + "/" + fullname
+	}
+
+	// Get file size for progress calculation
+	fileInfo, err := os.Stat(path.Path())
+	if err != nil {
+		dialog.ShowError(err, mw.window)
+		return
+	}
+	totalSize := fileInfo.Size()
+
+	bufreader := bufio.NewReader(reader)
+	detectBytes, err := bufreader.Peek(1024)
+	if err != nil {
+		fmt.Println("Error reading file: ", err)
+		return
+	}
+
+	mt := mimetype.Detect(detectBytes)
+
+	// Show progress bar before starting upload
+	mw.progressBar.Show()
+	mw.progressBar.SetValue(0)
+	mw.itemsLabel.SetText(fmt.Sprintf("Uploading %s", fullname))
+
+	// Perform upload in a separate goroutine
+	go func() {
 		defer reader.Close()
 
-		var fileData []byte
-		buf := make([]byte, 1024)
-		for {
-			n, readErr := reader.Read(buf)
-			if n > 0 {
-				fileData = append(fileData, buf[:n]...)
-			}
-			if readErr != nil {
-				break
-			}
+		// Create a Reader that tracks progress
+		pr := &ProgressReader{
+			Reader: bufreader,
+			Total:  totalSize,
+			OnProgress: func(bytesRead int64) {
+				progress := float64(bytesRead) / float64(totalSize)
+				fyne.Do(func() {
+					mw.progressBar.Show()
+					mw.progressBar.SetValue(progress)
+					mw.itemsLabel.SetText(fmt.Sprintf("Uploading %s: %.1f%%", fullname, progress*100))
+				})
+			},
 		}
 
-		err = mw.s3svc.UploadObject(reader.URI().Name(), fileData)
+		err = mw.s3svc.UploadObjectReader(ctx, fullname, pr, totalSize, mt.String())
 		if err != nil {
 			dialog.ShowError(err, mw.window)
 			return
 		}
-		dialog.ShowInformation("OK", "Upload finished!", mw.window)
-		mw.loadObjects(ctx)
-	}, mw.window)
 
-	fd.Show()
+		// Update UI when upload is complete
+		fyne.Do(func() {
+			mw.progressBar.Hide()
+			mw.itemsLabel.SetText("")
+			dialog.ShowInformation("OK", fmt.Sprintf("Uploaded file %s!", fullname), mw.window)
+			mw.loadObjects(ctx)
+		})
+	}()
 }
 
 func (mw *MainWindow) handleLink(ctx context.Context) {

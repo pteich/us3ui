@@ -51,6 +51,16 @@ func (s *Service) DeleteObject(ctx context.Context, objectName string) error {
 	return s.client.RemoveObject(ctx, s.bucketName, objectName, minio.RemoveObjectOptions{})
 }
 
+func (s *Service) UploadObjectReader(ctx context.Context, objectName string, r io.Reader, length int64, mimeType string) error {
+	_, err := s.client.PutObject(ctx, s.bucketName, objectName,
+		r,
+		length,
+		minio.PutObjectOptions{
+			ContentType: mimeType,
+		})
+	return err
+}
+
 func (s *Service) UploadObject(filePath string, data []byte) error {
 	ctx := context.Background()
 	objectName := filepath.Base(filePath)
