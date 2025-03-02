@@ -554,6 +554,7 @@ func (mw *MainWindow) handleDelete(ctx context.Context) {
 				} else {
 					mw.removeObject(obj.Key)
 				}
+				mw.updateSelect(idx, false)
 			}
 
 			mw.updateObjectList()
