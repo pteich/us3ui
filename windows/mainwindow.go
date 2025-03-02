@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -61,6 +62,16 @@ func NewMainWindow(a fyne.App, s3svc *s3.Service) *MainWindow {
 		window: window,
 	}
 
+	if runtime.GOOS == "darwin" {
+		window.SetMainMenu(fyne.NewMainMenu(
+			fyne.NewMenu("File",
+				fyne.NewMenuItem("About", func() {
+					window.Show()
+					mw.ShowAboutDialog()
+				})),
+		))
+	}
+
 	return mw
 }
 
@@ -111,6 +122,21 @@ func (mw *MainWindow) setupGUI(ctx context.Context) {
 	content := container.NewBorder(topContainer, container.NewPadded(bottomContainer), nil, nil, listContent)
 	mw.window.SetContent(content)
 	mw.window.Resize(fyne.NewSize(950, 500))
+}
+
+func (mw *MainWindow) ShowAboutDialog() {
+	dlg := dialog.NewInformation("About", "Universal S3 UI", mw.window)
+	dlg.Show()
+	/*
+		pop := widget.NewModalPopUp(dlg, mw.window.Canvas())
+		dlg.OnDismiss = func() {
+			pop.Hide()
+			c.doModalClosed()
+		}
+		c.ClosePopUpOnEscape(pop)
+		c.haveModal = true
+		pop.Show()
+	*/
 }
 
 func (mw *MainWindow) createDirTree(data binding.DataTree) *widget.Tree {
