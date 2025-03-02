@@ -193,7 +193,7 @@ func (mw *MainWindow) createObjectList() *widget.Table {
 			case 2:
 				check.Hide()
 				label.Show()
-				label.SetText(fmt.Sprintf("%d kB", obj.Size/1024))
+				label.SetText(ByteCountSI(obj.Size))
 			case 3:
 				check.Hide()
 				label.Show()
@@ -380,15 +380,6 @@ func (mw *MainWindow) updateTree() {
 	if err := mw.treeData.Set(ids, values); err != nil {
 		fmt.Printf("Error updating tree: %v\n", err)
 	}
-}
-
-func contains(slice []string, str string) bool {
-	for _, v := range slice {
-		if v == str {
-			return true
-		}
-	}
-	return false
 }
 
 func (mw *MainWindow) filterObjects() []minio.ObjectInfo {
