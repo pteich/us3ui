@@ -92,6 +92,11 @@ func (s *Service) ListObjectsBatch(ctx context.Context, startAfter string, batch
 		StartAfter:   startAfter,
 	}
 
+	fmt.Printf("Listing objects with options: startAfter: %s batchSize: %d\n", startAfter, batchSize)
+	start := time.Now()
+	defer func() {
+		fmt.Printf("ListObjectsBatch took: %v\n", time.Since(start))
+	}()
 	objectCh := s.client.ListObjects(ctx, s.bucketName, opts)
 	var objects []minio.ObjectInfo
 
