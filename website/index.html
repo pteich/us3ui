@@ -6,14 +6,14 @@
         <title>us3ui - Universal S3 Object Storage File Manager</title>
 
         <meta name="google-site-verification" content="-Zcl-4nh45oLtKN9unuXK-JrZy2EnBlqBoKDHVR89Gk" />
-        <link rel="icon" type="image/svg+xml" href="Icon.svg" />
-        <link rel="icon" type="image/png" href="Icon.png" />
-        <link rel="apple-touch-icon" href="Icon.png" />
+        <link rel="icon" type="image/svg+xml" href="../Icon.svg" />
+        <link rel="icon" type="image/png" href="../Icon.png" />
+        <link rel="apple-touch-icon" href="../Icon.png" />
 
         <meta property="og:title" content="us3ui - Universal S3 File Manager" />
         <meta
             property="og:description"
-            content="A native cross-platform GUI application for managing files on S3-compatible storage services"
+            content="A native cross-platform GUI application for viewing, uploading and managing files on S3-compatible object storage services"
         />
         <meta
             property="og:image"
@@ -29,7 +29,7 @@
         />
         <meta
             name="twitter:description"
-            content="A native cross-platform GUI application for managing files on any S3-compatible storage service"
+            content="A native cross-platform GUI application for managing files on any S3-compatible object storage service"
         />
         <meta
             name="twitter:image"
@@ -43,6 +43,22 @@
             href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@400;500;700&display=swap"
             rel="stylesheet"
         />
+
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@type": "SoftwareApplication",
+                "name": "us3ui",
+                "applicationCategory": "Utility",
+                "operatingSystem": ["Windows", "macOS", "Linux"],
+                "description": "A native cross-platform GUI application for managing files on S3-compatible object storage services",
+                "offers": {
+                    "@type": "Offer",
+                    "price": "0",
+                    "priceCurrency": "USD"
+                }
+            }
+        </script>
 
         <style>
             :root {
@@ -453,12 +469,12 @@
     <body>
         <section class="hero">
             <div class="container">
-                <img src="Icon.svg" alt="us3ui logo" class="app-icon" />
+                <img src="../Icon.svg" alt="us3ui logo" class="app-icon" />
                 <h1>us3ui</h1>
-                <p>Universal Cross-Platform S3 File Manager</p>
+                <p>Universal Cross-Platform Object Storage File Manager</p>
                 <p>
-                    A native application for managing files on any S3-compatible
-                    storage service
+                    A native application for managing files on any
+                    object storage service that supports the S3 API.
                 </p>
                 <div class="download-section">
                     <p class="version">Latest Version: v0.6.0</p>
@@ -503,7 +519,7 @@
                         <h3>Universal Compatibility</h3>
                         <p>
                             Works with any S3-compatible storage service
-                            including Minio, Ceph, OVH, Scaleway, Hetzner and
+                            including Minio, Ceph, or managed object-storage services from OVH, Scaleway, Hetzner and
                             more.
                         </p>
                     </div>
@@ -511,43 +527,42 @@
                         <h3>Cross-Platform</h3>
                         <p>
                             Native application available for macOS, Windows, and
-                            Linux. Small size <20MB without Electron.
+                            Linux. Small size less than 20MB without using Electron.
                         </p>
                     </div>
                     <div class="feature-card">
                         <h3>Connection Manager</h3>
                         <p>
-                            Save and manage multiple S3 service configurations
-                            easily.
+                            Save multiple S3 service configurations and switch
+                            easily (credentials saved only locally).
                         </p>
                     </div>
                     <div class="feature-card">
                         <h3>File Management</h3>
                         <p>
-                            Browse, upload, download, and delete files with
-                            ease. Generate temporary signed download links.
+                            Easily Browse, upload, download, and delete files.
                         </p>
                     </div>
                     <div class="feature-card">
                         <h3>Search & Filter</h3>
                         <p>
                             Full-text search functionality to find and filter
-                            your files quickly.
+                            your remote files quickly.
                         </p>
                     </div>
                     <div class="feature-card">
                         <h3>Folder Tree View</h3>
-                        <p>Show virtual folders in a tree view.</p>
+                        <p>Show virtual folders in a tree view or have a flat view of all files.</p>
                     </div>
                     <div class="feature-card">
                         <h3>Drag & Drop Upload</h3>
                         <p>
-                            Upload files by dragging them in to the file list.
+                            Upload files form your local machine by dragging them in to the file list.
                         </p>
                     </div>
                     <div class="feature-card">
                         <h3>Download Links</h3>
-                        <p>Generate pre-signed temporary download links.</p>
+                        <p>Generate pre-signed temporary download links to your files.</p>
                     </div>
                     <div class="feature-card">
                         <h3>Progress Tracking</h3>
@@ -564,14 +579,14 @@
             <div class="container">
                 <h2 class="section-title">Screenshots</h2>
                 <div class="screenshot-grid">
-                    <img src="screenshots/login.png" alt="Login Screen" />
-                    <img src="screenshots/filelist.png" alt="File List View" />
+                    <img src="../screenshots/login.png" alt="Login Screen" />
+                    <img src="../screenshots/filelist.png" alt="File List View" />
                     <img
-                        src="screenshots/selectfiles.png"
+                        src="../screenshots/selectfiles.png"
                         alt="File Selection"
                     />
                     <img
-                        src="screenshots/upload-file.png"
+                        src="../screenshots/upload-file.png"
                         alt="Upload Dialog"
                     />
                 </div>
