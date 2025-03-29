@@ -1,4 +1,4 @@
-# Universal S3 UI (us3ui)
+# Universal S3 UI (us3ui) ![Icon](website/Icon.svg){:height="50px" width="50px"} 
 
 Universal S3 UI is a lightweight, cross-platform graphical user interface for managing S3-compatible object storage services, with a particular focus on non-AWS implementations.
 Built with Go and Fyne, this application provides a seamless experience across macOS, Windows, and Linux and is provided as a native app.
@@ -93,22 +93,22 @@ Here's a visual walkthrough of the application:
 
 ### Login Screen
 
-![Login Screen](screenshots/login.png)
+![Login Screen](website/screenshots/login.png)
 _The login screen where you enter your S3 service configuration details_
 
 ### File List View
 
-![File List](screenshots/filelist.png)
+![File List](website/screenshots/filelist.png)
 _Main interface showing the list of objects in your bucket_
 
 ### Select files to download
 
-![File List](screenshots/selectfiles.png)
+![File List](website/screenshots/selectfiles.png)
 _Select one or multiple objects by clicking the checkbox in the first column to download or delete_
 
 ### Upload Dialog
 
-![Upload Dialog](screenshots/upload-file.png)
+![Upload Dialog](website/screenshots/upload-file.png)
 _File upload interface for adding new objects to your bucket_
 
 ## Technical Details
