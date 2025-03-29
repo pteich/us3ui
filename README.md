@@ -1,4 +1,6 @@
-# Universal S3 UI (us3ui) ![Icon](website/Icon.svg){:height="50px" width="50px"} 
+
+# Universal S3 UI (us3ui) 
+<img src="website/Icon.svg" alt="Icon" height="50px" width="50px" />
 
 Universal S3 UI is a lightweight, cross-platform graphical user interface for managing S3-compatible object storage services, with a particular focus on non-AWS implementations.
 Built with Go and Fyne, this application provides a seamless experience across macOS, Windows, and Linux and is provided as a native app.
