@@ -479,6 +479,7 @@ func (fm *FileManager) LoadObjects(ctx context.Context) {
 		}()
 
 		var err error
+		var batch []minio.ObjectInfo
 		fm.allObjects = []minio.ObjectInfo{}
 		fm.prefixes = make(map[string]bool)
 		var lastKey string
@@ -487,7 +488,7 @@ func (fm *FileManager) LoadObjects(ctx context.Context) {
 			fyne.Do(func() {
 				fm.loadingBar.Start()
 			})
-			batch, err := fm.s3svc.ListObjectsBatch(ctx, lastKey, batchSize)
+			batch, err = fm.s3svc.ListObjectsBatch(ctx, lastKey, batchSize)
 			if err != nil {
 				dialog.ShowError(err, fm.window)
 				return
@@ -525,10 +526,6 @@ func (fm *FileManager) LoadObjects(ctx context.Context) {
 			if len(batch) < batchSize {
 				break
 			}
-		}
-		if err != nil {
-			dialog.ShowError(err, fm.window)
-			return
 		}
 	}()
 }
@@ -688,14 +685,7 @@ func (fm *FileManager) handleDownload() {
 			fm.progressBar.Refresh()
 			obj := fm.currentObjects[idx]
 
-			filePath := uri.Path() + "/" + obj.Key
-
-			// Create directories if needed
-			dir := filepath.Dir(filePath)
-			if err := os.MkdirAll(dir, os.ModePerm); err != nil {
-				dialog.ShowError(err, fm.window)
-				continue
-			}
+			filePath := uri.Path() + "/" + filepath.Base(obj.Key)
 
 			fm.itemsLabel.SetText(fmt.Sprintf("Downloading %s", obj.Key))
 
