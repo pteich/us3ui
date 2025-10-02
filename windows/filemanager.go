@@ -3,6 +3,7 @@ package windows
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -24,7 +25,11 @@ import (
 	"github.com/pteich/us3ui/s3"
 )
 
-const batchSize = 1000
+const batchSize = 5000
+
+type loadHandle struct {
+	cancel context.CancelFunc
+}
 
 type FileManager struct {
 	app                  fyne.App
@@ -41,6 +46,7 @@ type FileManager struct {
 	treeData             binding.StringTree
 	searchDebounceTimer  *time.Timer
 	context              context.Context
+	loadHandle           *loadHandle
 
 	itemsLabel  *widget.Label
 	objectList  *widget.Table
@@ -276,7 +282,7 @@ func (fm *FileManager) createLoadingBar() *widget.ProgressBarInfinite {
 
 func (fm *FileManager) createStopButton() *widget.Button {
 	stopBtn := widget.NewButton("Stop", func() {
-		// To be implemented if needed
+		fm.cancelLoad()
 	})
 	stopBtn.Hide()
 	return stopBtn
@@ -389,7 +395,13 @@ func (fm *FileManager) updateTree() {
 	}
 }
 
-func (fm *FileManager) filterObjects() []minio.ObjectInfo {
+func (fm *FileManager) cancelLoad() {
+	if fm.loadHandle != nil {
+		fm.loadHandle.cancel()
+	}
+}
+
+func (fm *FileManager) filterObjectsLocked() []minio.ObjectInfo {
 	if fm.searchTerm == "" && (fm.selectedPrefix == "" || fm.selectedPrefix == "all") {
 		return fm.allObjects
 	}
@@ -449,84 +461,124 @@ func (fm *FileManager) removeObject(key string) {
 }
 
 func (fm *FileManager) updateObjectList() {
-	fm.currentObjects = fm.filterObjects()
+	fyne.Do(fm.updateObjectListLocked)
+}
+
+func (fm *FileManager) updateObjectListLocked() {
+	fm.currentObjects = fm.filterObjectsLocked()
 	fm.selectedIndex = nil
-	//fm.updateTree()
-	fyne.Do(func() {
-		fm.objectList.UnselectAll()
-		fm.objectList.Refresh()
-		fm.updateItemsLabel()
-		fm.tree.Refresh()
-	})
+	fm.objectList.UnselectAll()
+	fm.objectList.Refresh()
+	fm.updateItemsLabel()
+	fm.tree.Refresh()
 }
 
 func (fm *FileManager) LoadObjects(ctx context.Context) {
 	fm.context = ctx
-	fm.stopBtn.Show()
-	fm.progressBar.Show()
-	fm.loadingBar.Show()
-	fm.progressBar.SetValue(0)
-	fm.searchInput.SetText("")
+	fm.cancelLoad()
+
+	loadCtx, cancel := context.WithCancel(ctx)
+	handle := &loadHandle{cancel: cancel}
+	fm.loadHandle = handle
+
+	fyne.Do(func() {
+		fm.searchInput.SetText("")
+		fm.stopBtn.Show()
+		fm.loadingBar.Show()
+		fm.loadingBar.Start()
+		fm.progressBar.Hide()
+		fm.itemsLabel.SetText("Loading objects…")
+		fm.selectedIndex = nil
+		fm.currentObjects = nil
+		fm.allObjects = nil
+		fm.prefixes = make(map[string]bool)
+		fm.updateTree()
+		fm.objectList.UnselectAll()
+		fm.objectList.Refresh()
+		fm.tree.Refresh()
+	})
 
 	go func() {
-		defer func() {
-			fm.updateTree()
-			fyne.Do(func() {
-				fm.progressBar.Hide()
-				fm.loadingBar.Hide()
-				fm.stopBtn.Hide()
-			})
-		}()
+		defer cancel()
 
-		var err error
-		var batch []minio.ObjectInfo
-		fm.allObjects = []minio.ObjectInfo{}
-		fm.prefixes = make(map[string]bool)
+		allObjects := make([]minio.ObjectInfo, 0, batchSize)
+		prefixes := make(map[string]bool)
 		var lastKey string
+		var lastStatus time.Time
+
+		defer fyne.Do(func() {
+			fm.loadingBar.Stop()
+			fm.loadingBar.Hide()
+			fm.stopBtn.Hide()
+			fm.progressBar.Hide()
+			if fm.loadHandle == handle {
+				if loadCtx.Err() == context.Canceled {
+					fm.itemsLabel.SetText("Load canceled")
+				}
+				fm.loadHandle = nil
+			}
+		})
 
 		for {
-			fyne.Do(func() {
-				fm.loadingBar.Start()
-			})
-			batch, err = fm.s3svc.ListObjectsBatch(ctx, lastKey, batchSize)
+			select {
+			case <-loadCtx.Done():
+				return
+			default:
+			}
+
+			batch, err := fm.s3svc.ListObjectsBatch(loadCtx, lastKey, batchSize)
 			if err != nil {
-				dialog.ShowError(err, fm.window)
+				if errors.Is(err, context.Canceled) {
+					return
+				}
+				fyne.Do(func() {
+					dialog.ShowError(err, fm.window)
+				})
 				return
 			}
 
-			fm.allObjects = append(fm.allObjects, batch...)
-
-			fyne.Do(func() {
-				fm.loadingBar.Stop()
-				progress := float64(len(fm.allObjects)) / float64(len(fm.allObjects)+len(batch))
-				fm.progressBar.SetValue(progress)
-			})
-
-			if len(batch) > 0 {
-				lastKey = batch[len(batch)-1].Key
+			if len(batch) == 0 {
+				break
 			}
 
-			prefix := ""
+			allObjects = append(allObjects, batch...)
+
 			for i := range batch {
-				pos := strings.LastIndex(batch[i].Key, "/")
-				if pos == -1 {
-					continue
-				}
-
-				prefix = batch[i].Key[:pos]
-				_, found := fm.prefixes[prefix]
-				if !found {
-					fm.prefixes[prefix] = true
+				if idx := strings.LastIndex(batch[i].Key, "/"); idx != -1 {
+					prefixes[batch[i].Key[:idx]] = true
 				}
 			}
 
-			fm.selectedIndex = nil
-			fm.updateObjectList()
+			lastKey = batch[len(batch)-1].Key
+
+			if time.Since(lastStatus) >= 200*time.Millisecond {
+				total := len(allObjects)
+				fyne.Do(func() {
+					fm.itemsLabel.SetText(fmt.Sprintf("Loaded %d objects…", total))
+				})
+				lastStatus = time.Now()
+			}
 
 			if len(batch) < batchSize {
 				break
 			}
 		}
+
+		fyne.Do(func() {
+			if fm.loadHandle != handle {
+				return
+			}
+			fm.allObjects = allObjects
+			fm.prefixes = prefixes
+			fm.selectedIndex = nil
+			fm.updateTree()
+			fm.updateObjectListLocked()
+			if len(allObjects) > 0 {
+				fm.itemsLabel.SetText(fmt.Sprintf("Total Items: %d", len(allObjects)))
+			} else {
+				fm.itemsLabel.SetText("No objects found")
+			}
+		})
 	}()
 }
 
@@ -623,8 +675,9 @@ func (fm *FileManager) uploadFile(reader io.ReadCloser, path fyne.URI) {
 			},
 		}
 
-		err = fm.s3svc.UploadObjectReader(fm.context, fullname, pr, totalSize, mt.String())
+		err = fm.s3svc.UploadObjectReader(fm.context, path.Path(), fullname, pr, totalSize, mt.String())
 		if err != nil {
+			fmt.Println("Error uploading file: ", err)
 			dialog.ShowError(err, fm.window)
 			return
 		}
