@@ -24,3 +24,7 @@ deps:
 
 test:
 	go test
+
+fynetools:
+	go install fyne.io/tools/cmd/fyne@latest
+	go install github.com/fyne-io/fyne-cross@latest
