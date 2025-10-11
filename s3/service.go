@@ -51,7 +51,7 @@ func (s *Service) DeleteObject(ctx context.Context, objectName string) error {
 	return s.client.RemoveObject(ctx, s.bucketName, objectName, minio.RemoveObjectOptions{})
 }
 
-func (s *Service) UploadObjectReader(ctx context.Context, objectName string, r io.Reader, length int64, mimeType string) error {
+func (s *Service) UploadObjectReader(ctx context.Context, filePath string, objectName string, r io.Reader, length int64, mimeType string) error {
 	_, err := s.client.PutObject(ctx, s.bucketName, objectName,
 		r,
 		length,
@@ -92,13 +92,11 @@ func (s *Service) ListObjectsBatch(ctx context.Context, startAfter string, batch
 		StartAfter:   startAfter,
 	}
 
-	fmt.Printf("Listing objects with options: startAfter: %s batchSize: %d\n", startAfter, batchSize)
-	start := time.Now()
-	defer func() {
-		fmt.Printf("ListObjectsBatch took: %v\n", time.Since(start))
-	}()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	objectCh := s.client.ListObjects(ctx, s.bucketName, opts)
-	var objects []minio.ObjectInfo
+	objects := make([]minio.ObjectInfo, 0, batchSize)
 
 	for object := range objectCh {
 		if object.Err != nil {
@@ -106,6 +104,7 @@ func (s *Service) ListObjectsBatch(ctx context.Context, startAfter string, batch
 		}
 		objects = append(objects, object)
 		if len(objects) >= batchSize {
+			cancel()
 			break
 		}
 	}
