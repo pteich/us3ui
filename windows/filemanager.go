@@ -25,7 +25,11 @@ import (
 	"github.com/pteich/us3ui/s3"
 )
 
-const batchSize = 5000
+const (
+	batchSize         = 500                    // Smaller batches for faster initial response
+	uiUpdateInterval  = 500 * time.Millisecond // Less frequent UI updates
+	maxObjectsDefault = 50000                  // Default limit to prevent loading huge buckets entirely
+)
 
 type loadHandle struct {
 	cancel context.CancelFunc
@@ -41,30 +45,39 @@ type FileManager struct {
 	selectedDirStructure []string
 	selectedIndex        map[int]bool
 	prefixes             map[string]bool
+	basePrefix           string
 	selectedPrefix       string
 	searchTerm           string
 	treeData             binding.StringTree
 	searchDebounceTimer  *time.Timer
 	context              context.Context
 	loadHandle           *loadHandle
+	maxObjects           int  // Maximum objects to load (0 = unlimited)
+	hasMoreObjects       bool // True if load stopped due to limit
+	changeConnectionFunc func()
 
-	itemsLabel  *widget.Label
-	objectList  *widget.Table
-	searchInput *widget.Entry
-	progressBar *widget.ProgressBar
-	loadingBar  *widget.ProgressBarInfinite
-	stopBtn     *widget.Button
-	deleteBtn   *widget.Button
-	downloadBtn *widget.Button
-	linkBtn     *widget.Button
-	tree        *widget.Tree
+	itemsLabel   *widget.Label
+	objectList   *widget.Table
+	searchInput  *widget.Entry
+	prefixInput  *widget.Entry
+	progressBar  *widget.ProgressBar
+	loadingBar   *widget.ProgressBarInfinite
+	stopBtn      *widget.Button
+	deleteBtn    *widget.Button
+	downloadBtn  *widget.Button
+	linkBtn      *widget.Button
+	tree         *widget.Tree
+	loadMoreBtn  *widget.Button
+	maxObjsInput *widget.Entry
 }
 
-func NewFileManager(a fyne.App, s3svc *s3.Service, window fyne.Window) *FileManager {
+func NewFileManager(a fyne.App, s3svc *s3.Service, window fyne.Window, changeConn func()) *FileManager {
 	fm := &FileManager{
-		app:    a,
-		window: window,
-		s3svc:  s3svc,
+		app:                  a,
+		window:               window,
+		s3svc:                s3svc,
+		maxObjects:           maxObjectsDefault,
+		changeConnectionFunc: changeConn,
 	}
 
 	fm.setupUI()
@@ -81,6 +94,7 @@ func (fm *FileManager) setupUI() {
 	fm.itemsLabel = fm.createItemsLabel()
 	fm.objectList = fm.createObjectList()
 	fm.searchInput = fm.createSearchInput()
+	fm.prefixInput = fm.createPrefixInput()
 	fm.progressBar = fm.createProgressBar()
 	fm.loadingBar = fm.createLoadingBar()
 
@@ -141,12 +155,16 @@ func (fm *FileManager) createItemsLabel() *widget.Label {
 func (fm *FileManager) updateItemsLabel() {
 	filtered := len(fm.currentObjects)
 	all := len(fm.allObjects)
+	suffix := ""
+	if fm.hasMoreObjects {
+		suffix = fmt.Sprintf(" (limited to %d, use higher limit to see more)", fm.maxObjects)
+	}
 	if filtered != all {
-		fm.itemsLabel.SetText(fmt.Sprintf("Items: %d of %d total", filtered, all))
+		fm.itemsLabel.SetText(fmt.Sprintf("Items: %d of %d total%s", filtered, all, suffix))
 		return
 	}
 
-	fm.itemsLabel.SetText(fmt.Sprintf("Total Items: %d", all))
+	fm.itemsLabel.SetText(fmt.Sprintf("Total Items: %d%s", all, suffix))
 }
 
 func (fm *FileManager) createObjectList() *widget.Table {
@@ -266,6 +284,19 @@ func (fm *FileManager) createSearchInput() *widget.Entry {
 	return searchInput
 }
 
+func (fm *FileManager) createPrefixInput() *widget.Entry {
+	entry := widget.NewEntry()
+	entry.SetPlaceHolder("Prefix (optional)")
+	entry.Resize(fyne.NewSize(300, entry.MinSize().Height))
+	entry.OnSubmitted = func(value string) {
+		if fm.context == nil {
+			return
+		}
+		fm.LoadObjects(fm.context, value)
+	}
+	return entry
+}
+
 func (fm *FileManager) createProgressBar() *widget.ProgressBar {
 	progressBar := widget.NewProgressBar()
 	progressBar.Hide()
@@ -300,7 +331,10 @@ func (fm *FileManager) createBottomContainer() *fyne.Container {
 
 func (fm *FileManager) createButtonBar() *fyne.Container {
 	refreshBtn := widget.NewButton("Refresh", func() {
-		fm.LoadObjects(fm.context)
+		if fm.context == nil {
+			return
+		}
+		fm.LoadObjects(fm.context, strings.TrimSpace(fm.prefixInput.Text))
 	})
 	refreshBtn.Icon = theme.ViewRefreshIcon()
 
@@ -337,12 +371,58 @@ func (fm *FileManager) createButtonBar() *fyne.Container {
 	exitBtn.Alignment = widget.ButtonAlignTrailing
 	exitBtn.Icon = theme.CancelIcon()
 
-	return container.NewHBox(refreshBtn, downloadBtn, deleteBtn, linkBtn, uploadBtn, exitBtn)
+	changeConnBtn := widget.NewButton("Change Connection", func() {
+		if fm.changeConnectionFunc != nil {
+			fm.changeConnectionFunc()
+		}
+	})
+
+	return container.NewHBox(refreshBtn, downloadBtn, deleteBtn, linkBtn, uploadBtn, layout.NewSpacer(), exitBtn, changeConnBtn)
 }
 
 func (fm *FileManager) createTopContainer(btnBar *fyne.Container) *fyne.Container {
+	loadBtn := widget.NewButton("Load", func() {
+		if fm.context == nil {
+			return
+		}
+		fm.LoadObjects(fm.context, strings.TrimSpace(fm.prefixInput.Text))
+	})
+
+	// Max objects input
+	fm.maxObjsInput = widget.NewEntry()
+	fm.maxObjsInput.SetPlaceHolder(fmt.Sprintf("%d", maxObjectsDefault))
+	fm.maxObjsInput.SetText(fmt.Sprintf("%d", maxObjectsDefault))
+	fm.maxObjsInput.OnChanged = func(s string) {
+		if s == "" {
+			fm.maxObjects = 0 // unlimited
+			return
+		}
+		if val, err := strconv.Atoi(s); err == nil && val >= 0 {
+			fm.maxObjects = val
+		}
+	}
+
+	// Load more button
+	fm.loadMoreBtn = widget.NewButton("Load More", func() {
+		if fm.context == nil || !fm.hasMoreObjects {
+			return
+		}
+		fm.continueLoading(fm.context)
+	})
+	fm.loadMoreBtn.Hide()
+
+	prefixRow := container.NewHBox(
+		widget.NewLabel("Prefix:"),
+		container.NewGridWrap(fyne.NewSize(250, fm.prefixInput.MinSize().Height), fm.prefixInput),
+		loadBtn,
+		widget.NewLabel("Max objects:"),
+		container.NewGridWrap(fyne.NewSize(80, fm.maxObjsInput.MinSize().Height), fm.maxObjsInput),
+		fm.loadMoreBtn,
+		layout.NewSpacer(),
+	)
+
 	searchBar := container.New(layout.NewStackLayout(), fm.searchInput)
-	return container.NewVBox(btnBar, container.NewPadded(searchBar))
+	return container.NewVBox(btnBar, container.NewPadded(prefixRow), container.NewPadded(searchBar))
 }
 
 func (fm *FileManager) updateTree() {
@@ -473,113 +553,229 @@ func (fm *FileManager) updateObjectListLocked() {
 	fm.tree.Refresh()
 }
 
-func (fm *FileManager) LoadObjects(ctx context.Context) {
+func (fm *FileManager) LoadObjects(ctx context.Context, prefix string) {
 	fm.context = ctx
 	fm.cancelLoad()
+
+	cleanPrefix := strings.TrimSpace(prefix)
+	cleanPrefix = strings.TrimLeft(cleanPrefix, "/")
+	fm.basePrefix = cleanPrefix
 
 	loadCtx, cancel := context.WithCancel(ctx)
 	handle := &loadHandle{cancel: cancel}
 	fm.loadHandle = handle
 
 	fyne.Do(func() {
+		if fm.prefixInput != nil && fm.prefixInput.Text != cleanPrefix {
+			fm.prefixInput.SetText(cleanPrefix)
+		}
 		fm.searchInput.SetText("")
 		fm.stopBtn.Show()
 		fm.loadingBar.Show()
 		fm.loadingBar.Start()
 		fm.progressBar.Hide()
-		fm.itemsLabel.SetText("Loading objects…")
+		fm.loadMoreBtn.Hide()
+		if cleanPrefix != "" {
+			fm.itemsLabel.SetText(fmt.Sprintf("Loading objects under %q…", cleanPrefix))
+		} else {
+			fm.itemsLabel.SetText("Loading objects…")
+		}
 		fm.selectedIndex = nil
+		fm.selectedPrefix = "all"
 		fm.currentObjects = nil
 		fm.allObjects = nil
 		fm.prefixes = make(map[string]bool)
+		fm.hasMoreObjects = false
 		fm.updateTree()
 		fm.objectList.UnselectAll()
 		fm.objectList.Refresh()
 		fm.tree.Refresh()
+		if fm.tree != nil {
+			fm.tree.Select("all")
+		}
 	})
 
-	go func() {
-		defer cancel()
+	go fm.loadObjectsAsync(loadCtx, handle, "")
+}
 
-		allObjects := make([]minio.ObjectInfo, 0, batchSize)
-		prefixes := make(map[string]bool)
-		var lastKey string
-		var lastStatus time.Time
+func (fm *FileManager) continueLoading(ctx context.Context) {
+	if fm.loadHandle != nil {
+		return // Already loading
+	}
 
-		defer fyne.Do(func() {
-			fm.loadingBar.Stop()
-			fm.loadingBar.Hide()
-			fm.stopBtn.Hide()
-			fm.progressBar.Hide()
-			if fm.loadHandle == handle {
-				if loadCtx.Err() == context.Canceled {
-					fm.itemsLabel.SetText("Load canceled")
-				}
-				fm.loadHandle = nil
+	loadCtx, cancel := context.WithCancel(ctx)
+	handle := &loadHandle{cancel: cancel}
+	fm.loadHandle = handle
+
+	var lastKey string
+	if len(fm.allObjects) > 0 {
+		lastKey = fm.allObjects[len(fm.allObjects)-1].Key
+	}
+
+	fyne.Do(func() {
+		fm.stopBtn.Show()
+		fm.loadingBar.Show()
+		fm.loadingBar.Start()
+		fm.loadMoreBtn.Hide()
+		fm.itemsLabel.SetText(fmt.Sprintf("Loading more objects (currently %d)…", len(fm.allObjects)))
+	})
+
+	go fm.loadObjectsAsync(loadCtx, handle, lastKey)
+}
+
+func (fm *FileManager) loadObjectsAsync(loadCtx context.Context, handle *loadHandle, startAfter string) {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Printf("Panic in loadObjectsAsync: %v\n", r)
+		}
+	}()
+
+	defer loadCtx.Value(nil) // Ensure cancel is called via defer in parent
+
+	lastKey := startAfter
+	var lastStatus time.Time
+	loadFailed := false
+	startTime := time.Now()
+
+	defer fyne.Do(func() {
+		if fm.loadHandle != handle {
+			return
+		}
+		fm.loadingBar.Stop()
+		fm.loadingBar.Hide()
+		fm.stopBtn.Hide()
+		fm.progressBar.Hide()
+
+		if fm.hasMoreObjects {
+			fm.loadMoreBtn.Show()
+		}
+
+		switch {
+		case loadCtx.Err() == context.Canceled:
+			fm.itemsLabel.SetText(fmt.Sprintf("Load canceled (%d objects loaded)", len(fm.allObjects)))
+			if fm.hasMoreObjects {
+				fm.loadMoreBtn.Show()
 			}
-		})
-
-		for {
-			select {
-			case <-loadCtx.Done():
-				return
-			default:
+		case loadFailed:
+			fm.itemsLabel.SetText("Failed to load objects")
+		case len(fm.allObjects) > 0:
+			elapsed := time.Since(startTime)
+			suffix := ""
+			if fm.hasMoreObjects {
+				suffix = " (more available)"
 			}
+			fm.itemsLabel.SetText(fmt.Sprintf("Loaded %d objects in %.1fs%s", len(fm.allObjects), elapsed.Seconds(), suffix))
+			fm.updateItemsLabel()
+		default:
+			fm.itemsLabel.SetText("No objects found")
+		}
+		fm.loadHandle = nil
+	})
 
-			batch, err := fm.s3svc.ListObjectsBatch(loadCtx, lastKey, batchSize)
-			if err != nil {
-				if errors.Is(err, context.Canceled) {
+	firstBatch := true
+
+	for {
+		select {
+		case <-loadCtx.Done():
+			return
+		default:
+		}
+
+		// Check if we've hit the limit
+		if fm.maxObjects > 0 && len(fm.allObjects) >= fm.maxObjects {
+			fm.hasMoreObjects = true
+			fyne.Do(func() {
+				if fm.loadHandle != handle {
 					return
 				}
-				fyne.Do(func() {
-					dialog.ShowError(err, fm.window)
-				})
-				return
-			}
+				fm.updateTree()
+				fm.updateObjectListLocked()
+			})
+			return
+		}
 
-			if len(batch) == 0 {
-				break
-			}
-
-			allObjects = append(allObjects, batch...)
-
-			for i := range batch {
-				if idx := strings.LastIndex(batch[i].Key, "/"); idx != -1 {
-					prefixes[batch[i].Key[:idx]] = true
-				}
-			}
-
-			lastKey = batch[len(batch)-1].Key
-
-			if time.Since(lastStatus) >= 200*time.Millisecond {
-				total := len(allObjects)
-				fyne.Do(func() {
-					fm.itemsLabel.SetText(fmt.Sprintf("Loaded %d objects…", total))
-				})
-				lastStatus = time.Now()
-			}
-
-			if len(batch) < batchSize {
-				break
+		// Calculate remaining batch size
+		currentBatchSize := batchSize
+		if fm.maxObjects > 0 {
+			remaining := fm.maxObjects - len(fm.allObjects)
+			if remaining < batchSize {
+				currentBatchSize = remaining
 			}
 		}
+
+		batch, err := fm.s3svc.ListObjectsBatch(loadCtx, lastKey, fm.basePrefix, currentBatchSize)
+		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return
+			}
+			loadFailed = true
+			fyne.Do(func() {
+				dialog.ShowError(err, fm.window)
+			})
+			return
+		}
+
+		if len(batch) == 0 {
+			fyne.Do(func() {
+				if fm.loadHandle != handle {
+					return
+				}
+				fm.updateTree()
+				fm.updateObjectListLocked()
+			})
+			return
+		}
+
+		batchCopy := make([]minio.ObjectInfo, len(batch))
+		copy(batchCopy, batch)
+
+		batchPrefixes := make(map[string]struct{})
+		for i := range batch {
+			if idx := strings.LastIndex(batch[i].Key, "/"); idx != -1 {
+				batchPrefixes[batch[i].Key[:idx]] = struct{}{}
+			}
+		}
+
+		// For first batch, update immediately; otherwise use interval
+		shouldUpdate := firstBatch || lastStatus.IsZero() ||
+			time.Since(lastStatus) >= uiUpdateInterval ||
+			len(batch) < currentBatchSize
 
 		fyne.Do(func() {
 			if fm.loadHandle != handle {
 				return
 			}
-			fm.allObjects = allObjects
-			fm.prefixes = prefixes
-			fm.selectedIndex = nil
-			fm.updateTree()
-			fm.updateObjectListLocked()
-			if len(allObjects) > 0 {
-				fm.itemsLabel.SetText(fmt.Sprintf("Total Items: %d", len(allObjects)))
-			} else {
-				fm.itemsLabel.SetText("No objects found")
+			fm.allObjects = append(fm.allObjects, batchCopy...)
+			for p := range batchPrefixes {
+				fm.prefixes[p] = true
+			}
+			if shouldUpdate {
+				fm.updateTree()
+				fm.updateObjectListLocked()
+				fm.itemsLabel.SetText(fmt.Sprintf("Loaded %d objects…", len(fm.allObjects)))
 			}
 		})
-	}()
+
+		if shouldUpdate {
+			lastStatus = time.Now()
+		}
+
+		firstBatch = false
+		lastKey = batch[len(batch)-1].Key
+
+		// Check if we got fewer than requested (end of listing)
+		if len(batch) < currentBatchSize {
+			fm.hasMoreObjects = false
+			fyne.Do(func() {
+				if fm.loadHandle != handle {
+					return
+				}
+				fm.updateTree()
+				fm.updateObjectListLocked()
+			})
+			return
+		}
+	}
 }
 
 func (fm *FileManager) handleDelete() {
@@ -687,7 +883,7 @@ func (fm *FileManager) uploadFile(reader io.ReadCloser, path fyne.URI) {
 			fm.progressBar.Hide()
 			fm.itemsLabel.SetText("")
 			dialog.ShowInformation("OK", fmt.Sprintf("Uploaded file %s!", fullname), fm.window)
-			fm.LoadObjects(fm.context)
+			fm.LoadObjects(fm.context, fm.basePrefix)
 		})
 	}()
 }
