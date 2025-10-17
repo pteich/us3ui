@@ -477,7 +477,7 @@
                     self-hosted or managed object storage service that supports the S3 API. Written in Go.
                 </p>
                 <div class="download-section">
-                    <p class="version">Latest Version: v0.6.0</p>
+                    <p class="version">Latest Version: v0.8.0</p>
                     <div class="download-buttons">
                         <a
                             href="https://github.com/pteich/us3ui/releases/latest/download/Universal.s3.GUI.Windows.exe.zip"
@@ -572,6 +572,33 @@
                         </p>
                     </div>
                 </div>
+            </div>
+        </section>
+
+        <section class="features" id="unsigned">
+            <div class="container">
+                <h2 class="section-title">Running on macOS and Windows (Unsigned builds)</h2>
+                <p>The downloadable builds are not code-signed yet. Your operating system may warn or block the first launch. This is expected for unsigned apps. You can still run us3ui by following these steps.</p>
+
+                <h3>macOS</h3>
+                <ol>
+                    <li>Download the macOS ZIP from the Releases page and unzip it.</li>
+                    <li>Optional: Move "Universal s3 GUI.app" to your Applications folder.</li>
+                    <li>First launch via Finder: right-click (or Ctrl-click) the app and choose <em>Open</em>, then click <em>Open</em> in the warning dialog. This is only needed once per download.</li>
+                    <li>If you already double-clicked and it was blocked: open <em>System Settings → Privacy &amp; Security</em>, then click <em>Open Anyway</em> next to the blocked app and confirm with <em>Open</em>.</li>
+                    <li>Advanced (optional): If Finder keeps blocking it, remove the download quarantine in Terminal:
+                        <pre><code>xattr -dr com.apple.quarantine "/Applications/Universal s3 GUI.app"</code></pre>
+                        <small>Adjust the path if you keep the app outside Applications.</small>
+                    </li>
+                </ol>
+
+                <h3>Windows</h3>
+                <ol>
+                    <li>Right-click the downloaded ZIP → <em>Properties</em> → on the <em>General</em> tab check <em>Unblock</em> (if shown) → <em>Apply</em>, then extract.</li>
+                    <li>Launch the extracted EXE. If you see "Windows protected your PC", click <em>More info</em> → <em>Run anyway</em>.</li>
+                    <li>If Windows still blocks it: right-click the EXE → <em>Properties</em> → check <em>Unblock</em> (if present) → <em>Apply</em>, then try again.</li>
+                </ol>
+
             </div>
         </section>
 

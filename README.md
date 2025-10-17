@@ -40,6 +40,37 @@ If you find Universal S3 UI helpful, please consider supporting its development 
 
 You can download pre-built binaries for Linux, macOS, and Windows from the [GitHub Releases](https://github.com/pteich/us3ui/releases) page. This allows you to quickly get started with Universal S3 UI without needing to build from source. Simply download the appropriate binary for your operating system, extract it, and run the executable.
 
+## Running on macOS and Windows (Unsigned builds)
+
+The pre-built binaries are currently not code-signed. macOS Gatekeeper and Windows Defender SmartScreen may warn or block the first launch. This is expected for unsigned apps. You can still run the app by following the steps below.
+
+### macOS
+
+1. Download the macOS ZIP from the Releases page and unzip it.
+2. Optional: Move "Universal s3 GUI.app" to your Applications folder.
+3. First launch via Finder:
+   - Right-click (or Ctrl-click) the app and choose "Open".
+   - When the warning dialog appears, click "Open". This is only needed once per download.
+4. If you already tried to open it by double-click and it was blocked:
+   - Open System Settings → Privacy & Security.
+   - In the Security section, find the message that the app was blocked and click "Open Anyway", then confirm with "Open".
+5. Advanced (optional): Remove the download quarantine in Terminal if Finder keeps blocking it:
+   
+```bash
+   xattr -dr com.apple.quarantine "/Applications/Universal s3 GUI.app"
+```
+
+   Adjust the path if you keep the app outside Applications.
+
+### Windows
+
+1. Download the Windows ZIP, right-click it → Properties → if you see an "Unblock" checkbox on the General tab, check it and click Apply, then extract.
+2. Start the app by double-clicking the EXE. If you see "Windows protected your PC":
+   - Click "More info".
+   - Verify the app name, then click "Run anyway".
+3. If Windows still blocks it, right-click the extracted EXE → Properties → check "Unblock" (if present), then Apply and try again.
+
+
 ## Getting Started
 
 ### Prerequisites
