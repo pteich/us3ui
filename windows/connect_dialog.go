@@ -18,7 +18,7 @@ type ConnectDialog struct {
 	cfg               *config.Config
 	connectionManager *connections.Manager
 	dialog            *widget.PopUp
-	onConnected       func(*s3.Service)
+	onConnected       func(*s3.Service, string)
 
 	// UI elements
 	connectionsList     *widget.List
@@ -37,7 +37,7 @@ type ConnectDialog struct {
 	sslCheck            *widget.Check
 }
 
-func NewConnectDialog(a fyne.App, cfg *config.Config, parent fyne.Window, onConnected func(*s3.Service)) *ConnectDialog {
+func NewConnectDialog(a fyne.App, cfg *config.Config, parent fyne.Window, onConnected func(*s3.Service, string)) *ConnectDialog {
 	cd := &ConnectDialog{
 		app:          a,
 		parentWindow: parent,
@@ -215,7 +215,7 @@ func (cd *ConnectDialog) handleFormSubmit() {
 
 	// Notify that we're connected
 	if cd.onConnected != nil {
-		cd.onConnected(s3svc)
+		cd.onConnected(s3svc, s3Cfg.Prefix)
 	}
 }
 

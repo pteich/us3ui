@@ -26,6 +26,7 @@ type MainWindow struct {
 	cfg       *config.Config
 	s3Service *s3.Service
 	ctx       context.Context
+	prefix    string
 
 	// Current content management
 	currentContent fyne.CanvasObject
@@ -87,9 +88,10 @@ func (mw *MainWindow) showAboutDialog() {
 func (mw *MainWindow) showConnectionDialog() {
 	// Create connection dialog if it doesn't exist
 	if mw.connectDialog == nil {
-		mw.connectDialog = NewConnectDialog(mw.app, mw.cfg, mw.window, func(service *s3.Service) {
+		mw.connectDialog = NewConnectDialog(mw.app, mw.cfg, mw.window, func(service *s3.Service, prefix string) {
 			// This will be called when a connection is established
 			mw.s3Service = service
+			mw.prefix = prefix
 			mw.loadFileManager()
 		})
 	}
@@ -99,23 +101,15 @@ func (mw *MainWindow) showConnectionDialog() {
 
 func (mw *MainWindow) loadFileManager() {
 	// Create file manager
-	mw.fileManager = NewFileManager(mw.app, mw.s3Service, mw.window)
-
-	// Set up the menu bar with connection controls
-	menuBar := container.NewHBox(
-		widget.NewButton("Change Connection", func() {
-			mw.showConnectionDialog()
-		}),
-	)
-
-	// Create a border layout with the menu at the top
-	content := container.NewBorder(menuBar, nil, nil, nil, mw.fileManager.Container)
+	mw.fileManager = NewFileManager(mw.app, mw.s3Service, mw.window, func() {
+		mw.showConnectionDialog()
+	})
 
 	// Update the window content
-	mw.window.SetContent(content)
+	mw.window.SetContent(mw.fileManager.Container)
 
 	// Start loading objects
-	mw.fileManager.LoadObjects(mw.ctx)
+	mw.fileManager.LoadObjects(mw.ctx, mw.prefix)
 }
 
 func (mw *MainWindow) checkVersion() {

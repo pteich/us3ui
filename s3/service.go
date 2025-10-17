@@ -18,7 +18,6 @@ import (
 type Service struct {
 	client     *minio.Client
 	bucketName string
-	prefix     string
 }
 
 func New(cfg config.S3Config) (*Service, error) {
@@ -30,7 +29,7 @@ func New(cfg config.S3Config) (*Service, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to server: %w", err)
 	}
-	return &Service{client: client, bucketName: cfg.Bucket, prefix: cfg.Prefix}, nil
+	return &Service{client: client, bucketName: cfg.Bucket}, nil
 }
 
 func (s *Service) ListObjects(ctx context.Context) ([]minio.ObjectInfo, error) {
@@ -82,12 +81,12 @@ func (s *Service) GetPresignedURL(ctx context.Context, objectName string, expire
 	return s.client.PresignedGetObject(ctx, s.bucketName, objectName, expires, nil)
 }
 
-func (s *Service) ListObjectsBatch(ctx context.Context, startAfter string, batchSize int) ([]minio.ObjectInfo, error) {
+func (s *Service) ListObjectsBatch(ctx context.Context, startAfter, prefix string, batchSize int) ([]minio.ObjectInfo, error) {
 	opts := minio.ListObjectsOptions{
 		WithVersions: false,
 		WithMetadata: false,
 		MaxKeys:      batchSize,
-		Prefix:       s.prefix,
+		Prefix:       prefix,
 		Recursive:    true,
 		StartAfter:   startAfter,
 	}
