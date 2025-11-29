@@ -110,3 +110,15 @@ func (s *Service) ListObjectsBatch(ctx context.Context, startAfter, prefix strin
 
 	return objects, nil
 }
+
+func (s *Service) ListBuckets(ctx context.Context) ([]minio.BucketInfo, error) {
+	return s.client.ListBuckets(ctx)
+}
+
+func (s *Service) CreateBucket(ctx context.Context, bucketName string, region string) error {
+	return s.client.MakeBucket(ctx, bucketName, minio.MakeBucketOptions{Region: region})
+}
+
+func (s *Service) DeleteBucket(ctx context.Context, bucketName string) error {
+	return s.client.RemoveBucket(ctx, bucketName)
+}

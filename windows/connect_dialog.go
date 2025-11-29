@@ -118,11 +118,14 @@ func (cd *ConnectDialog) createFormEntries() {
 }
 
 func (cd *ConnectDialog) createConfigForm() *widget.Form {
+	manageButton := widget.NewButtonWithIcon("Manage Buckets", theme.SettingsIcon(), cd.handleManageBuckets)
+
 	form := widget.NewForm([]*widget.FormItem{
 		{Text: "Name", Widget: cd.connectionNameEntry, HintText: "The name is only used to save connection details."},
 		{Text: "Endpoint", Widget: cd.endpointEntry},
 		{Text: "Access Key", Widget: cd.accessKeyEntry},
 		{Text: "Secret Key", Widget: cd.secretKeyEntry},
+		{Text: "", Widget: manageButton}, // Insert button here
 		{Text: "Bucket Name", Widget: cd.bucketEntry},
 		{Text: "Region", Widget: cd.regionEntry},
 		{Text: "Prefix", Widget: cd.prefixEntry},
@@ -294,4 +297,29 @@ func (cd *ConnectDialog) handleAdd() {
 	cd.toolbarSaveAction.Disable()
 	cd.toolbarDeleteAction.Disable()
 	cd.toolbarCopyAction.Disable()
+}
+
+func (cd *ConnectDialog) handleManageBuckets() {
+	s3Cfg := config.S3Config{
+		Endpoint:  cd.endpointEntry.Text,
+		AccessKey: cd.accessKeyEntry.Text,
+		SecretKey: cd.secretKeyEntry.Text,
+		Bucket:    cd.bucketEntry.Text,
+		UseSSL:    cd.sslCheck.Checked,
+		Prefix:    cd.prefixEntry.Text,
+		Region:    cd.regionEntry.Text,
+		Name:      cd.connectionNameEntry.Text,
+	}
+
+	// Create the S3 service
+	s3svc, err := s3.New(s3Cfg)
+	if err != nil {
+		dialog.ShowError(err, cd.parentWindow)
+		return
+	}
+
+	bm := NewBucketManager(cd.app, cd.parentWindow, s3svc, func(bucketName string) {
+		cd.bucketEntry.SetText(bucketName)
+	})
+	bm.Show()
 }

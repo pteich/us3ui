@@ -3,7 +3,7 @@ module github.com/pteich/us3ui
 go 1.24.5
 
 require (
-	fyne.io/fyne/v2 v2.7.0-rc2
+	fyne.io/fyne/v2 v2.7.1
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/gabriel-vasile/mimetype v1.4.8
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
