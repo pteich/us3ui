@@ -43,7 +43,7 @@ type FileManager struct {
 	currentObjects       []minio.ObjectInfo
 	allObjects           []minio.ObjectInfo
 	selectedDirStructure []string
-	selectedIndex        map[int]bool
+	selectedKeys         map[string]bool
 	prefixes             map[string]bool
 	basePrefix           string
 	selectedPrefix       string
@@ -184,7 +184,9 @@ func (fm *FileManager) createObjectList() *widget.Table {
 			label := box.Objects[1].(*widget.Label)
 
 			if id.Row >= len(fm.currentObjects) {
-				return // Safeguard against index out of range
+				check.Hide()
+				label.Hide()
+				return
 			}
 
 			obj := fm.currentObjects[id.Row]
@@ -192,21 +194,15 @@ func (fm *FileManager) createObjectList() *widget.Table {
 			switch id.Col {
 			case 0:
 				check.Show()
-				check.Refresh()
 				label.Hide()
-				if fm.selectedIndex != nil {
-					_, selected := fm.selectedIndex[id.Row]
-					check.Checked = selected
-				} else {
-					check.Checked = false
+				currentSelected := fm.selectedKeys[obj.Key]
+				if check.Checked != currentSelected {
+					check.Checked = currentSelected
+					check.Refresh()
 				}
 
 				check.OnChanged = func(checked bool) {
-					if checked {
-						fm.updateSelect(id.Row, true)
-					} else {
-						fm.updateSelect(id.Row, false)
-					}
+					fm.updateSelect(id.Row, checked)
 				}
 			case 1:
 				check.Hide()
@@ -258,13 +254,13 @@ func (fm *FileManager) createObjectList() *widget.Table {
 	}
 
 	objectList.OnSelected = func(id widget.TableCellID) {
-		if fm.selectedIndex != nil {
-			_, selected := fm.selectedIndex[id.Row]
-			fm.updateSelect(id.Row, !selected)
-			return
+		if id.Row < len(fm.currentObjects) {
+			obj := fm.currentObjects[id.Row]
+			currentSelected := fm.selectedKeys[obj.Key]
+			fm.updateSelect(id.Row, !currentSelected)
+		} else {
+			fm.updateSelect(id.Row, true)
 		}
-
-		fm.updateSelect(id.Row, true)
 	}
 
 	return objectList
@@ -504,20 +500,26 @@ func (fm *FileManager) filterObjectsLocked() []minio.ObjectInfo {
 }
 
 func (fm *FileManager) updateSelect(idx int, selected bool) {
+	if idx < 0 || idx >= len(fm.currentObjects) {
+		return
+	}
+
+	obj := fm.currentObjects[idx]
+
 	if selected {
-		if fm.selectedIndex == nil {
-			fm.selectedIndex = make(map[int]bool)
+		if fm.selectedKeys == nil {
+			fm.selectedKeys = make(map[string]bool)
 		}
 
-		fm.selectedIndex[idx] = selected
+		fm.selectedKeys[obj.Key] = true
 
 		fm.deleteBtn.Enable()
 		fm.downloadBtn.Enable()
 		fm.linkBtn.Enable()
 	} else {
-		delete(fm.selectedIndex, idx)
-		if len(fm.selectedIndex) == 0 {
-			fm.selectedIndex = nil
+		delete(fm.selectedKeys, obj.Key)
+		if len(fm.selectedKeys) == 0 {
+			fm.selectedKeys = nil
 			fm.deleteBtn.Disable()
 			fm.downloadBtn.Disable()
 			fm.linkBtn.Disable()
@@ -545,10 +547,17 @@ func (fm *FileManager) updateObjectList() {
 }
 
 func (fm *FileManager) updateObjectListLocked() {
-	fm.currentObjects = fm.filterObjectsLocked()
-	fm.selectedIndex = nil
+	filtered := fm.filterObjectsLocked()
+
 	fm.objectList.UnselectAll()
+	fm.objectList.ScrollTo(widget.TableCellID{Row: 0, Col: 0})
+
+	fm.currentObjects = nil
 	fm.objectList.Refresh()
+
+	fm.currentObjects = filtered
+	fm.objectList.Refresh()
+
 	fm.updateItemsLabel()
 	fm.tree.Refresh()
 }
@@ -580,7 +589,7 @@ func (fm *FileManager) LoadObjects(ctx context.Context, prefix string) {
 		} else {
 			fm.itemsLabel.SetText("Loading objects…")
 		}
-		fm.selectedIndex = nil
+		fm.selectedKeys = nil
 		fm.selectedPrefix = "all"
 		fm.currentObjects = nil
 		fm.allObjects = nil
@@ -779,13 +788,13 @@ func (fm *FileManager) loadObjectsAsync(loadCtx context.Context, handle *loadHan
 }
 
 func (fm *FileManager) handleDelete() {
-	if fm.selectedIndex == nil {
+	if fm.selectedKeys == nil {
 		dialog.ShowInformation("Info", "No object selected", fm.window)
 		return
 	}
 
-	msg := fmt.Sprintf("Do you really want to delete '%d' files?", len(fm.selectedIndex))
-	if len(fm.selectedIndex) == 1 {
+	msg := fmt.Sprintf("Do you really want to delete '%d' files?", len(fm.selectedKeys))
+	if len(fm.selectedKeys) == 1 {
 		msg = "Do you really want to delete this file?"
 	}
 
@@ -797,17 +806,19 @@ func (fm *FileManager) handleDelete() {
 				return
 			}
 
-			for idx := range fm.selectedIndex {
-				obj := fm.currentObjects[idx]
-				err := fm.s3svc.DeleteObject(fm.context, obj.Key)
+			for key := range fm.selectedKeys {
+				err := fm.s3svc.DeleteObject(fm.context, key)
 				if err != nil {
 					dialog.ShowError(err, fm.window)
 				} else {
-					fm.removeObject(obj.Key)
+					fm.removeObject(key)
 				}
-				fm.updateSelect(idx, false)
 			}
 
+			fm.selectedKeys = nil
+			fm.deleteBtn.Disable()
+			fm.downloadBtn.Disable()
+			fm.linkBtn.Disable()
 			fm.updateObjectList()
 		}, fm.window)
 	confirm.Show()
@@ -889,14 +900,13 @@ func (fm *FileManager) uploadFile(reader io.ReadCloser, path fyne.URI) {
 }
 
 func (fm *FileManager) handleLink() {
-	if fm.selectedIndex == nil {
+	if fm.selectedKeys == nil {
 		dialog.ShowInformation("Info", "No object selected", fm.window)
 		return
 	}
 
-	for idx := range fm.selectedIndex {
-		obj := fm.currentObjects[idx]
-		linkurl, err := fm.s3svc.GetPresignedURL(fm.context, obj.Key, 1*time.Hour)
+	for key := range fm.selectedKeys {
+		linkurl, err := fm.s3svc.GetPresignedURL(fm.context, key, 1*time.Hour)
 		if err != nil {
 			dialog.ShowError(err, fm.window)
 			return
@@ -905,7 +915,7 @@ func (fm *FileManager) handleLink() {
 		t := widget.NewEntry()
 		t.SetText(linkurl.String())
 
-		d := dialog.NewCustomWithoutButtons("Link to "+obj.Key, t, fm.window)
+		d := dialog.NewCustomWithoutButtons("Link to "+key, t, fm.window)
 		d.SetButtons([]fyne.CanvasObject{widget.NewButton("Copy and Close", func() {
 			fm.window.Clipboard().SetContent(linkurl.String())
 			d.Hide()
@@ -915,7 +925,7 @@ func (fm *FileManager) handleLink() {
 }
 
 func (fm *FileManager) handleDownload() {
-	if fm.selectedIndex == nil {
+	if fm.selectedKeys == nil {
 		dialog.ShowInformation("Info", "No object selected!", fm.window)
 		return
 	}
@@ -925,20 +935,19 @@ func (fm *FileManager) handleDownload() {
 			return
 		}
 
-		num := len(fm.selectedIndex)
+		num := len(fm.selectedKeys)
 		i := 0
-		for idx := range fm.selectedIndex {
+		for key := range fm.selectedKeys {
 			i++
 			fm.progressBar.Show()
 			fm.progressBar.SetValue(float64(100*i/num) / 100)
 			fm.progressBar.Refresh()
-			obj := fm.currentObjects[idx]
 
-			filePath := uri.Path() + "/" + filepath.Base(obj.Key)
+			filePath := uri.Path() + "/" + filepath.Base(key)
 
-			fm.itemsLabel.SetText(fmt.Sprintf("Downloading %s", obj.Key))
+			fm.itemsLabel.SetText(fmt.Sprintf("Downloading %s", key))
 
-			s3obj, err := fm.s3svc.DownloadObject(fm.context, obj.Key)
+			s3obj, err := fm.s3svc.DownloadObject(fm.context, key)
 			if err != nil {
 				dialog.ShowError(err, fm.window)
 				continue

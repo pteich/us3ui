@@ -4,8 +4,8 @@ Website = "https://github.com/pteich/us3ui"
   Icon = "website/Icon.png"
   Name = "Universal s3 GUI"
   ID = "de.peter-teich.us3ui"
-  Version = "0.9.0"
-  Build = 17
+  Version = "0.9.1"
+  Build = 21
 
 [LinuxAndBSD]
   GenericName = "Universal s3 GUI"
