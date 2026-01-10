@@ -25,6 +25,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Update Version
+        run: |
+          VERSION=$(git describe --tags --abbrev=0)
+          echo "Updating version to $VERSION"
+          sed -i "s/Latest Version: .*/Latest Version: $VERSION<\/p>/" website/index.html
+          sed -i "s|releases/latest/download|releases/download/$VERSION|g" website/index.html
+          sed -i "s|releases/latest|releases/tag/$VERSION|g" website/index.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
