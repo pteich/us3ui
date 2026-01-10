@@ -422,6 +422,55 @@
                 font-size: 1.2rem;
             }
 
+            .more-projects {
+                padding: 4rem 0;
+                background: var(--light);
+            }
+
+            .more-projects-content {
+                text-align: center;
+                max-width: 800px;
+                margin: 0 auto;
+            }
+
+            .more-projects-content h2 {
+                margin-bottom: 2rem;
+                color: var(--secondary);
+            }
+
+            .project-card {
+                background: white;
+                padding: 2rem;
+                border-radius: 1rem;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+                border-top: 4px solid var(--primary);
+                transition: transform 0.2s;
+                text-align: left;
+            }
+
+            .project-card:hover {
+                transform: translateY(-4px);
+            }
+
+            .project-card h3 {
+                color: var(--secondary);
+                margin-bottom: 1rem;
+                font-size: 1.4rem;
+                font-weight: 600;
+            }
+
+            .project-card a {
+                display: inline-block;
+                margin-top: 1rem;
+                color: var(--primary);
+                text-decoration: none;
+                font-weight: 600;
+            }
+
+            .project-card a:hover {
+                text-decoration: underline;
+            }
+
             @media (max-width: 768px) {
                 .hero h1 {
                     font-size: 3rem;
@@ -616,6 +665,23 @@
                         src="screenshots/upload-file.png"
                         alt="Upload files dialog. You can also drag and drop files to the list view for uploading them."
                     />
+                </div>
+            </div>
+        </section>
+
+        <section class="more-projects">
+            <div class="container">
+                <h2 class="section-title">More Projects</h2>
+                <div class="features-grid">
+                    <div class="project-card">
+                        <h3>CRDLens</h3>
+                        <p>
+                            Terminal-based explorer for Kubernetes Custom Resource Definitions and Custom Resources. Inspect CRD schemas, manage resources, and monitor controller health.
+                        </p>
+                        <a href="https://crdlens.pteich.de/" target="_blank" rel="noopener noreferrer">
+                            Visit crdlens.pteich.de →
+                        </a>
+                    </div>
                 </div>
             </div>
         </section>
