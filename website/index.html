@@ -501,6 +501,63 @@
                 padding: 0 2rem;
             }
         }
+
+        .section-lead {
+            text-align: center;
+            max-width: 720px;
+            margin: 0 auto 2rem;
+            font-size: 1.05rem;
+            color: var(--secondary);
+            opacity: 0.9;
+        }
+
+        .link-row {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 1.5rem;
+        }
+
+        .link-row a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .link-row a:hover {
+            text-decoration: underline;
+        }
+
+        .trust {
+            padding: 4rem 0;
+            background: white;
+        }
+
+        .trust-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 2rem;
+            margin-top: 2.5rem;
+        }
+
+        .trust-card {
+            padding: 1.5rem;
+            border-radius: 1rem;
+            border: 1px solid #eee;
+            background: #fff;
+        }
+
+        .trust-card h3 {
+            margin-bottom: 0.75rem;
+            color: var(--secondary);
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .trust-card p {
+            font-size: 0.95rem;
+        }
     </style>
 </head>
 
@@ -509,10 +566,10 @@
         <div class="container">
             <img src="Icon.svg" alt="us3ui logo" class="app-icon" />
             <h1>us3ui</h1>
-            <p>Desktop Client for S3 Object Storage</p>
+            <p>Desktop Client for S3-Compatible Object Storage</p>
             <p>
-                A fast, native application to manage files on your S3-compatible storage.
-                Works with self-hosted instances and managed services across macOS, Windows, and Linux.
+                A focused, native file manager for S3 buckets. Browse, upload, and share objects with
+                a fast UI built for daily operations on MinIO, Ceph, AWS, and more.
             </p>
             <div class="download-section">
                 <p class="version">Latest Version: v0.8.0</p>
@@ -520,19 +577,29 @@
                     View Downloads
                 </a>
                 <p style="margin-top: 0.75rem; font-size: 0.95rem; opacity: 0.85;">
-                    Verify release assets with <a href="https://github.com/pteich/us3ui/releases/latest/download/checksums.txt"
+                    Verify release assets with <a
+                        href="https://github.com/pteich/us3ui/releases/latest/download/checksums.txt"
                         style="color: var(--primary); text-decoration: none;">checksums.txt</a>.
                 </p>
                 <a href="https://github.com/pteich/us3ui/releases/latest" class="release-notes">
                     View Release Notes
                 </a>
             </div>
+            <div class="link-row">
+                <a href="https://github.com/pteich/us3ui">View Source</a>
+                <a href="#features">Learn More</a>
+                <a href="#trust">Trust &amp; Contact</a>
+            </div>
         </div>
     </section>
 
-    <section class="features">
+    <section class="features" id="features">
         <div class="container">
             <h2 class="section-title">Key Features</h2>
+            <p class="section-lead">
+                us3ui is designed for operators and developers who need a fast, no-frills way to work with
+                object storage every day.
+            </p>
             <div class="features-grid">
                 <div class="feature-card">
                     <h3>S3 Compatible</h3>
@@ -544,8 +611,8 @@
                 <div class="feature-card">
                     <h3>Native Performance</h3>
                     <p>
-                        Built with Go and Fyne for speed. A single, small executable (under 20MB)
-                        that runs natively without the overhead of web technologies.
+                        Built with Go and Fyne for speed. A compact native app that starts instantly
+                        without the overhead of web technologies.
                     </p>
                 </div>
                 <div class="feature-card">
@@ -558,8 +625,8 @@
                 <div class="feature-card">
                     <h3>File and Bucket Operations</h3>
                     <p>
-                        Standard file management: browse, upload, download, and delete objects. Create and delete
-                        buckets.
+                        Browse, upload, download, and delete objects. Create and remove buckets with clear
+                        status feedback.
                     </p>
                 </div>
                 <div class="feature-card">
@@ -575,7 +642,7 @@
                 <div class="feature-card">
                     <h3>Easy Uploads</h3>
                     <p>
-                        Drag files from your desktop directly into the application to start uploading.
+                        Drag files from your desktop into the app to start uploading immediately.
                     </p>
                 </div>
                 <div class="feature-card">
@@ -595,8 +662,10 @@
     <section class="features" id="unsigned">
         <div class="container">
             <h2 class="section-title">Installation Notes</h2>
-            <p>The application is distributed as a portable binary and is not currently code-signed. First-time launch
-                often requires manual approval.</p>
+            <p class="section-lead">
+                us3ui is distributed as a portable binary and is not currently code-signed. First-time launch
+                may require manual approval.
+            </p>
 
             <h3>macOS</h3>
             <ol>
@@ -618,6 +687,36 @@
         </div>
     </section>
 
+    <section class="features">
+        <div class="container">
+            <h2 class="section-title">How It Works</h2>
+            <p class="section-lead">
+                Connect with access keys, browse buckets and objects, and perform file operations. us3ui stores
+                connection profiles locally on your machine and does not proxy your data through any servers.
+            </p>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <h3>Direct Connections</h3>
+                    <p>
+                        Connects directly to your S3 endpoint. Your credentials stay on your machine.
+                    </p>
+                </div>
+                <div class="feature-card">
+                    <h3>Clear Status</h3>
+                    <p>
+                        Progress indicators and logs keep uploads and downloads transparent.
+                    </p>
+                </div>
+                <div class="feature-card">
+                    <h3>Portable Setup</h3>
+                    <p>
+                        No installers required. Download, extract, and run the app.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <section class="screenshots">
         <div class="container">
             <h2 class="section-title">Screenshots</h2>
@@ -629,6 +728,26 @@
                     alt="Several actions when files are selected: download, delete, generate download link" />
                 <img src="screenshots/upload-file.png"
                     alt="Upload files dialog. You can also drag and drop files to the list view for uploading them." />
+            </div>
+        </div>
+    </section>
+
+    <section class="features">
+        <div class="container">
+            <h2 class="section-title">FAQ</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <h3>Does us3ui upload data to a third-party server?</h3>
+                    <p>No. The app connects directly to your S3-compatible endpoint.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Where are profiles stored?</h3>
+                    <p>Profiles are stored locally on your machine in the app's config directory.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Is there a web version?</h3>
+                    <p>No. us3ui is a native desktop application focused on speed and simplicity.</p>
+                </div>
             </div>
         </div>
     </section>
@@ -646,6 +765,36 @@
                     <a href="https://crdlens.pteich.de/" target="_blank" rel="noopener noreferrer">
                         Visit crdlens.pteich.de →
                     </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="trust" id="trust">
+        <div class="container">
+            <h2 class="section-title">Trust &amp; Contact</h2>
+            <p class="section-lead">
+                us3ui is an open source project maintained by Peter Teich.
+            </p>
+            <div class="trust-grid">
+                <div class="trust-card">
+                    <h3>Contact & Imprint</h3>
+                    <p><a href="https://peter-teich.de/">Peter Teich</a></p>
+                    <p>
+                        Email: <a href="mailto:mail@peter-teich.de">mail@peter-teich.de</a>
+                    </p>
+                </div>
+
+                <div class="trust-card">
+                    <h3>Privacy</h3>
+                    <p>This site uses no cookies and no analytics scripts.</p>
+                </div>
+                <div class="trust-card">
+                    <h3>Source Code</h3>
+                    <p>
+                        Review the code on GitHub:
+                        <a href="https://github.com/pteich/us3ui">github.com/pteich/us3ui</a>
+                    </p>
                 </div>
             </div>
         </div>
@@ -689,10 +838,7 @@
                     Open source project available on
                     <a href="https://github.com/pteich/us3ui">GitHub</a>
                 </p>
-                <p class="repo-info">
-                    Contact: <a href="mailto:mail@peter-teich.de">mail@peter-teich.de</a>
-                </p>
-                <p class="license">Released under MIT License by <a href="https://peter-teich.de/">Peter Teich</a></p>
+                <p class="license">Released under MIT License</p>
             </div>
         </div>
     </footer>
