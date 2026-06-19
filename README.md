@@ -10,6 +10,7 @@ Built with Go and Fyne, this application provides a seamless experience across m
 
 - **Universal Compatibility**: Works with any S3-compatible storage service (Minio, Ceph, etc.)
 - **Connection Manager**: Save and manage multiple S3 service configurations
+- **Secure Credential Storage**: Secret keys are kept in your operating system's keychain (macOS Keychain, Windows Credential Manager, Linux Secret Service) instead of plaintext on disk
 - **Drag-and-Drop Support**: Drag multiple files from your local machine to upload to your bucket
 - **Secure Connections**: Support for both HTTP and HTTPS connections
 - **File Management**:
@@ -93,7 +94,7 @@ When you start the application, you can use the GUI to manage your connections:
    - **Region**: (Optional) The region of your S3 service
    - **SSL**: Toggle for HTTPS connection (recommended for production use)
 
-2. Save the connection, which will be stored in a local configuration file. The location of this file depends on your operating system.
+2. Save the connection. Connection details are stored in a local configuration file (the location depends on your operating system), while the secret key is stored separately in your operating system's keychain.
 
 3. You can create and save multiple connections for different S3 services or buckets.
 
