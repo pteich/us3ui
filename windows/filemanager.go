@@ -604,7 +604,7 @@ func (fm *FileManager) LoadObjects(ctx context.Context, prefix string) {
 		}
 	})
 
-	go fm.loadObjectsAsync(loadCtx, handle, "")
+	go fm.loadObjectsAsync(loadCtx, handle, "", 0, fm.maxObjects, fm.basePrefix)
 }
 
 func (fm *FileManager) continueLoading(ctx context.Context) {
@@ -629,22 +629,21 @@ func (fm *FileManager) continueLoading(ctx context.Context) {
 		fm.itemsLabel.SetText(fmt.Sprintf("Loading more objects (currently %d)…", len(fm.allObjects)))
 	})
 
-	go fm.loadObjectsAsync(loadCtx, handle, lastKey)
+	go fm.loadObjectsAsync(loadCtx, handle, lastKey, len(fm.allObjects), fm.maxObjects, fm.basePrefix)
 }
 
-func (fm *FileManager) loadObjectsAsync(loadCtx context.Context, handle *loadHandle, startAfter string) {
+func (fm *FileManager) loadObjectsAsync(loadCtx context.Context, handle *loadHandle, startAfter string, startCount, maxObjects int, basePrefix string) {
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Printf("Panic in loadObjectsAsync: %v\n", r)
 		}
 	}()
 
-	defer loadCtx.Value(nil) // Ensure cancel is called via defer in parent
-
 	lastKey := startAfter
 	var lastStatus time.Time
 	loadFailed := false
 	startTime := time.Now()
+	loaded := startCount
 
 	defer fyne.Do(func() {
 		if fm.loadHandle != handle {
@@ -691,12 +690,12 @@ func (fm *FileManager) loadObjectsAsync(loadCtx context.Context, handle *loadHan
 		}
 
 		// Check if we've hit the limit
-		if fm.maxObjects > 0 && len(fm.allObjects) >= fm.maxObjects {
-			fm.hasMoreObjects = true
+		if maxObjects > 0 && loaded >= maxObjects {
 			fyne.Do(func() {
 				if fm.loadHandle != handle {
 					return
 				}
+				fm.hasMoreObjects = true
 				fm.updateTree()
 				fm.updateObjectListLocked()
 			})
@@ -705,14 +704,14 @@ func (fm *FileManager) loadObjectsAsync(loadCtx context.Context, handle *loadHan
 
 		// Calculate remaining batch size
 		currentBatchSize := batchSize
-		if fm.maxObjects > 0 {
-			remaining := fm.maxObjects - len(fm.allObjects)
+		if maxObjects > 0 {
+			remaining := maxObjects - loaded
 			if remaining < batchSize {
 				currentBatchSize = remaining
 			}
 		}
 
-		batch, err := fm.s3svc.ListObjectsBatch(loadCtx, lastKey, fm.basePrefix, currentBatchSize)
+		batch, err := fm.s3svc.ListObjectsBatch(loadCtx, lastKey, basePrefix, currentBatchSize)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				return
@@ -771,14 +770,15 @@ func (fm *FileManager) loadObjectsAsync(loadCtx context.Context, handle *loadHan
 
 		firstBatch = false
 		lastKey = batch[len(batch)-1].Key
+		loaded += len(batchCopy)
 
 		// Check if we got fewer than requested (end of listing)
 		if len(batch) < currentBatchSize {
-			fm.hasMoreObjects = false
 			fyne.Do(func() {
 				if fm.loadHandle != handle {
 					return
 				}
+				fm.hasMoreObjects = false
 				fm.updateTree()
 				fm.updateObjectListLocked()
 			})
