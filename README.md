@@ -155,8 +155,7 @@ Built using:
 
 Ensure you're using SSL (HTTPS) when connecting to production servers to protect your credentials and data in transit.
 All credentials are only used on your local machine to create the necessary connection.
-If you save connections using the connection manager, please notice that the secret key is saved in
-your local config file unencrypted. Leave the field empty before saving or don't save connections at all to prevent this.
+Saved connections store the secret key in your operating system's secure credential store (macOS Keychain, Windows Credential Manager, or the Linux Secret Service) rather than in the configuration file. If no secure store is available, the app falls back to saving the secret key in the local configuration file. Existing connections with plaintext secret keys are migrated to the secure store automatically on first launch.
 
 ## License
 

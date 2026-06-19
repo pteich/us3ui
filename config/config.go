@@ -59,7 +59,38 @@ func New() (*Config, error) {
 		cfg.Settings = settings
 	}
 
+	if cfg.loadSecrets() {
+		// Legacy plaintext secrets were migrated to the keychain; rewrite the
+		// file without them (best effort).
+		_ = cfg.Save()
+	}
+
 	return cfg, nil
+}
+
+// loadSecrets reconciles connection secret keys with the OS keychain.
+// For each saved connection: a non-empty (legacy plaintext) SecretKey is pushed
+// to the keychain and reported via the return value so the caller can rewrite
+// the file without it; an empty SecretKey is filled from the keychain when
+// present. Best effort: keychain failures leave the in-memory value as-is so the
+// app still works without a keychain backend.
+func (c *Config) loadSecrets() (migrated bool) {
+	for i := range c.Settings.Connections {
+		conn := &c.Settings.Connections[i]
+		if conn.Name == "" || conn.Name == Transient {
+			continue
+		}
+		if conn.SecretKey != "" {
+			if err := secretSet(conn.Name, conn.SecretKey); err == nil {
+				migrated = true
+			}
+			continue
+		}
+		if s, err := secretGet(conn.Name); err == nil {
+			conn.SecretKey = s
+		}
+	}
+	return migrated
 }
 
 func (c *Config) Save() error {
@@ -81,8 +112,22 @@ func (c *Config) Save() error {
 			connections = append(connections, conn)
 		}
 	}
-
 	c.Settings.Connections = connections
 
-	return json.NewEncoder(f).Encode(c.Settings)
+	// Build the copy that gets written to disk: move each secret into the OS
+	// keychain and blank it in the file. If the keychain is unavailable, fall
+	// back to writing the secret in the file (preserves current behavior so the
+	// app keeps working without a keychain backend).
+	serialized := make([]S3Config, len(connections))
+	copy(serialized, connections)
+	for i := range serialized {
+		if serialized[i].SecretKey == "" || serialized[i].Name == "" {
+			continue
+		}
+		if err := secretSet(serialized[i].Name, serialized[i].SecretKey); err == nil {
+			serialized[i].SecretKey = ""
+		}
+	}
+
+	return json.NewEncoder(f).Encode(Settings{Connections: serialized})
 }
