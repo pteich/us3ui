@@ -63,11 +63,17 @@ func New() (*Config, error) {
 }
 
 func (c *Config) Save() error {
-	f, err := os.Create(c.filepath)
+	f, err := os.OpenFile(c.filepath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
+
+	// Ensure an already-existing file is tightened to owner-only; OpenFile
+	// does not change the mode of a file that already exists.
+	if err := f.Chmod(0o600); err != nil {
+		return err
+	}
 
 	connections := make([]S3Config, 0)
 	for _, conn := range c.Settings.Connections {

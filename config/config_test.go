@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -53,5 +54,26 @@ func TestSaveFiltersTransientAndRoundTrips(t *testing.T) {
 	}
 	if loaded.Connections[1].Endpoint != normal2.Endpoint {
 		t.Errorf("Connections[1].Endpoint = %q, want %q", loaded.Connections[1].Endpoint, normal2.Endpoint)
+	}
+}
+
+func TestSavePermissions(t *testing.T) {
+	c := &Config{
+		filepath: filepath.Join(t.TempDir(), "settings.json"),
+		Settings: Settings{Connections: []S3Config{{Name: "x", Endpoint: "e"}}},
+	}
+
+	if err := c.Save(); err != nil {
+		t.Fatalf("Save() returned error: %v", err)
+	}
+
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(c.filepath)
+		if err != nil {
+			t.Fatalf("os.Stat() returned error: %v", err)
+		}
+		if perm := info.Mode().Perm(); perm != 0o600 {
+			t.Errorf("file permissions = %04o, want 0600", perm)
+		}
 	}
 }
