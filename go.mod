@@ -1,6 +1,6 @@
 module github.com/pteich/us3ui
 
-go 1.24.5
+go 1.26
 
 require (
 	fyne.io/fyne/v2 v2.7.4
