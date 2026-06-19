@@ -806,20 +806,26 @@ func (fm *FileManager) handleDelete() {
 				return
 			}
 
+			keys := make([]string, 0, len(fm.selectedKeys))
 			for key := range fm.selectedKeys {
-				err := fm.s3svc.DeleteObject(fm.context, key)
-				if err != nil {
-					dialog.ShowError(err, fm.window)
-				} else {
-					fm.removeObject(key)
-				}
+				keys = append(keys, key)
 			}
-
-			fm.selectedKeys = nil
-			fm.deleteBtn.Disable()
-			fm.downloadBtn.Disable()
-			fm.linkBtn.Disable()
-			fm.updateObjectList()
+			go func() {
+				for _, key := range keys {
+					if err := fm.s3svc.DeleteObject(fm.context, key); err != nil {
+						fyne.Do(func() { dialog.ShowError(err, fm.window) })
+						continue
+					}
+					fyne.Do(func() { fm.removeObject(key) })
+				}
+				fyne.Do(func() {
+					fm.selectedKeys = nil
+					fm.deleteBtn.Disable()
+					fm.downloadBtn.Disable()
+					fm.linkBtn.Disable()
+					fm.updateObjectListLocked()
+				})
+			}()
 		}, fm.window)
 	confirm.Show()
 }
@@ -935,42 +941,44 @@ func (fm *FileManager) handleDownload() {
 			return
 		}
 
-		num := len(fm.selectedKeys)
-		i := 0
+		keys := make([]string, 0, len(fm.selectedKeys))
 		for key := range fm.selectedKeys {
-			i++
-			fm.progressBar.Show()
-			fm.progressBar.SetValue(float64(100*i/num) / 100)
-			fm.progressBar.Refresh()
-
-			filePath := uri.Path() + "/" + filepath.Base(key)
-
-			fm.itemsLabel.SetText(fmt.Sprintf("Downloading %s", key))
-
-			s3obj, err := fm.s3svc.DownloadObject(fm.context, key)
-			if err != nil {
-				dialog.ShowError(err, fm.window)
-				continue
-			}
-
-			f, err := os.Create(filePath)
-			if err != nil {
-				dialog.ShowError(err, fm.window)
-				s3obj.Close()
-				continue
-			}
-
-			_, copyErr := io.Copy(f, s3obj)
-			if copyErr != nil {
-				dialog.ShowError(copyErr, fm.window)
-			}
-
-			f.Close()
-			s3obj.Close()
+			keys = append(keys, key)
 		}
+		go func() {
+			num := len(keys)
+			for i, key := range keys {
+				progress := float64(i+1) / float64(num)
+				label := fmt.Sprintf("Downloading %s", key)
+				fyne.Do(func() {
+					fm.progressBar.Show()
+					fm.progressBar.SetValue(progress)
+					fm.itemsLabel.SetText(label)
+				})
 
-		fm.progressBar.Hide()
-		fm.updateObjectList()
+				filePath := uri.Path() + "/" + filepath.Base(key)
+				s3obj, err := fm.s3svc.DownloadObject(fm.context, key)
+				if err != nil {
+					fyne.Do(func() { dialog.ShowError(err, fm.window) })
+					continue
+				}
+				f, err := os.Create(filePath)
+				if err != nil {
+					fyne.Do(func() { dialog.ShowError(err, fm.window) })
+					s3obj.Close()
+					continue
+				}
+				if _, copyErr := io.Copy(f, s3obj); copyErr != nil {
+					fyne.Do(func() { dialog.ShowError(copyErr, fm.window) })
+				}
+				f.Close()
+				s3obj.Close()
+			}
+			fyne.Do(func() {
+				fm.progressBar.Hide()
+				fm.updateObjectListLocked()
+			})
+		}()
 
 	}, fm.window)
 
