@@ -21,7 +21,7 @@ deps:
 	go mod tidy;
 
 test:
-	go test
+	go test ./...
 
 fynetools:
 	go install fyne.io/tools/cmd/fyne@latest
