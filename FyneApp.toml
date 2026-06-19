@@ -1,14 +1,14 @@
 Website = "https://github.com/pteich/us3ui"
 
 [Details]
-  Icon = "website/Icon.png"
-  Name = "Universal s3 GUI"
-  ID = "de.peter-teich.us3ui"
-  Version = "0.9.1"
-  Build = 21
+Icon = "website/Icon.png"
+Name = "Universal s3 GUI"
+ID = "de.peter-teich.us3ui"
+Version = "0.10.0"
+Build = 22
 
 [LinuxAndBSD]
-  GenericName = "Universal s3 GUI"
-  Categories = ["Network"]
-  Comment = "Browse s3 compatible storage systems and manage your files"
-  Keywords = ["files", "cloud", "web"]
+GenericName = "Universal s3 GUI"
+Categories = ["Network"]
+Comment = "Browse s3 compatible storage systems and manage your files"
+Keywords = ["files", "cloud", "web"]
