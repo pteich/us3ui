@@ -1,12 +1,10 @@
 package s3
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"net/url"
-	"path/filepath"
 	"time"
 
 	"github.com/minio/minio-go/v7"
@@ -32,20 +30,6 @@ func New(cfg config.S3Config) (*Service, error) {
 	return &Service{client: client, bucketName: cfg.Bucket}, nil
 }
 
-func (s *Service) ListObjects(ctx context.Context) ([]minio.ObjectInfo, error) {
-	objectCh := s.client.ListObjects(ctx, s.bucketName, minio.ListObjectsOptions{
-		Recursive: true,
-	})
-	var objects []minio.ObjectInfo
-	for obj := range objectCh {
-		if obj.Err != nil {
-			return nil, obj.Err
-		}
-		objects = append(objects, obj)
-	}
-	return objects, nil
-}
-
 func (s *Service) DeleteObject(ctx context.Context, objectName string) error {
 	return s.client.RemoveObject(ctx, s.bucketName, objectName, minio.RemoveObjectOptions{})
 }
@@ -56,19 +40,6 @@ func (s *Service) UploadObjectReader(ctx context.Context, filePath string, objec
 		length,
 		minio.PutObjectOptions{
 			ContentType: mimeType,
-		})
-	return err
-}
-
-func (s *Service) UploadObject(filePath string, data []byte) error {
-	ctx := context.Background()
-	objectName := filepath.Base(filePath)
-
-	_, err := s.client.PutObject(ctx, s.bucketName, objectName,
-		bytes.NewReader(data),
-		int64(len(data)),
-		minio.PutObjectOptions{
-			ContentType: "application/octet-stream",
 		})
 	return err
 }
