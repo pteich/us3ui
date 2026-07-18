@@ -115,17 +115,7 @@ func (fm *FileManager) setupUI() {
 
 	// Set up drag & drop
 	fm.window.SetOnDropped(func(p fyne.Position, files []fyne.URI) {
-		for _, file := range files {
-			if file.Scheme() == "file" {
-				f, err := os.Open(file.Path())
-				if err != nil {
-					dialog.ShowError(err, fm.window)
-					continue
-				}
-
-				fm.uploadFile(f, file)
-			}
-		}
+		fm.uploadDroppedFiles(files)
 	})
 }
 
@@ -148,7 +138,7 @@ func (fm *FileManager) createDirTree(data binding.DataTree) *widget.Tree {
 
 func (fm *FileManager) createItemsLabel() *widget.Label {
 	label := widget.NewLabel("")
-	label.Resize(fyne.NewSize(200, label.MinSize().Height))
+	label.Truncation = fyne.TextTruncateEllipsis
 	return label
 }
 
@@ -182,6 +172,7 @@ func (fm *FileManager) createObjectList() *widget.Table {
 			box := co.(*fyne.Container)
 			check := box.Objects[0].(*widget.Check)
 			label := box.Objects[1].(*widget.Label)
+			label.Alignment = fyne.TextAlignLeading
 
 			if id.Row >= len(fm.currentObjects) {
 				check.Hide()
@@ -212,6 +203,7 @@ func (fm *FileManager) createObjectList() *widget.Table {
 			case 2:
 				check.Hide()
 				label.Show()
+				label.Truncation = fyne.TextTruncateOff
 				label.SetText(ByteCountSI(obj.Size))
 			case 3:
 				check.Hide()
@@ -316,8 +308,14 @@ func (fm *FileManager) createStopButton() *widget.Button {
 }
 
 func (fm *FileManager) createBottomContainer() *fyne.Container {
+	dropHint := container.NewHBox(
+		widget.NewIcon(theme.UploadIcon()),
+		widget.NewLabel("Drop files anywhere to upload"),
+	)
+
 	return container.NewHBox(
-		fm.itemsLabel,
+		container.NewGridWrap(fyne.NewSize(320, fm.itemsLabel.MinSize().Height), fm.itemsLabel),
+		dropHint,
 		layout.NewSpacer(),
 		fm.stopBtn,
 		container.NewGridWrap(fyne.NewSize(100, fm.progressBar.MinSize().Height), fm.loadingBar),
@@ -843,27 +841,14 @@ func (fm *FileManager) handleUpload() {
 }
 
 func (fm *FileManager) uploadFile(reader io.ReadCloser, path fyne.URI) {
-	fullname := path.Name()
-	if fm.selectedPrefix != "root" && fm.selectedPrefix != "all" {
-		fullname = fm.selectedPrefix + "/" + fullname
-	}
-
-	// Get file size for progress calculation
-	fileInfo, err := os.Stat(path.Path())
-	if err != nil {
-		dialog.ShowError(err, fm.window)
-		return
-	}
-	totalSize := fileInfo.Size()
-
-	bufreader := bufio.NewReader(reader)
-	detectBytes, err := bufreader.Peek(1024)
-	if err != nil && err != io.EOF {
-		fmt.Println("Error reading file: ", err)
+	ctx := fm.context
+	if ctx == nil {
+		dialog.ShowError(fmt.Errorf("no active connection"), fm.window)
 		return
 	}
 
-	mt := mimetype.Detect(detectBytes)
+	fullname := uploadObjectName(fm.selectedPrefix, path)
+	basePrefix := fm.basePrefix
 
 	// Show progress bar before starting upload
 	fm.progressBar.Show()
@@ -872,26 +857,20 @@ func (fm *FileManager) uploadFile(reader io.ReadCloser, path fyne.URI) {
 
 	// Perform upload in a separate goroutine
 	go func() {
-		defer reader.Close()
-
-		// Create a Reader that tracks progress
-		pr := &ProgressReader{
-			Reader: bufreader,
-			Total:  totalSize,
-			OnProgress: func(bytesRead int64) {
-				progress := float64(bytesRead) / float64(totalSize)
-				fyne.Do(func() {
-					fm.progressBar.Show()
-					fm.progressBar.SetValue(progress)
-					fm.itemsLabel.SetText(fmt.Sprintf("Uploading %s: %.1f%%", fullname, progress*100))
-				})
-			},
-		}
-
-		err = fm.s3svc.UploadObjectReader(fm.context, path.Path(), fullname, pr, totalSize, mt.String())
+		err := fm.uploadReader(ctx, reader, path, fullname, func(progress float64) {
+			fyne.Do(func() {
+				fm.progressBar.Show()
+				fm.progressBar.SetValue(progress)
+				fm.itemsLabel.SetText(fmt.Sprintf("Uploading %s: %.1f%%", fullname, progress*100))
+			})
+		})
 		if err != nil {
 			fmt.Println("Error uploading file: ", err)
-			dialog.ShowError(err, fm.window)
+			fyne.Do(func() {
+				fm.progressBar.Hide()
+				fm.itemsLabel.SetText("")
+				dialog.ShowError(err, fm.window)
+			})
 			return
 		}
 
@@ -900,9 +879,164 @@ func (fm *FileManager) uploadFile(reader io.ReadCloser, path fyne.URI) {
 			fm.progressBar.Hide()
 			fm.itemsLabel.SetText("")
 			dialog.ShowInformation("OK", fmt.Sprintf("Uploaded file %s!", fullname), fm.window)
-			fm.LoadObjects(fm.context, fm.basePrefix)
+			fm.LoadObjects(ctx, basePrefix)
 		})
 	}()
+}
+
+func (fm *FileManager) uploadDroppedFiles(files []fyne.URI) {
+	files = fileURIs(files)
+	if len(files) == 0 {
+		return
+	}
+
+	ctx := fm.context
+	if ctx == nil {
+		dialog.ShowError(fmt.Errorf("no active connection"), fm.window)
+		return
+	}
+
+	selectedPrefix := fm.selectedPrefix
+	basePrefix := fm.basePrefix
+
+	go func() {
+		uploaded := 0
+		failures := make([]string, 0)
+
+		for i, file := range files {
+			fullname := uploadObjectName(selectedPrefix, file)
+			f, err := os.Open(file.Path())
+			if err != nil {
+				failures = appendUploadFailure(failures, file, err)
+				continue
+			}
+
+			fileIndex := i + 1
+			totalFiles := len(files)
+			fyne.Do(func() {
+				fm.progressBar.Show()
+				fm.progressBar.SetValue(0)
+				fm.itemsLabel.SetText(fmt.Sprintf("Uploading %d of %d: %s", fileIndex, totalFiles, fullname))
+			})
+
+			err = fm.uploadReader(ctx, f, file, fullname, func(progress float64) {
+				fyne.Do(func() {
+					fm.progressBar.Show()
+					fm.progressBar.SetValue(progress)
+					fm.itemsLabel.SetText(fmt.Sprintf("Uploading %d of %d: %s (%.1f%%)", fileIndex, totalFiles, fullname, progress*100))
+				})
+			})
+			if err != nil {
+				fmt.Println("Error uploading file: ", err)
+				failures = appendUploadFailure(failures, file, err)
+				continue
+			}
+
+			uploaded++
+		}
+
+		fyne.Do(func() {
+			fm.progressBar.Hide()
+			fm.itemsLabel.SetText("")
+			dialog.ShowInformation("Upload Complete", uploadSummaryMessage(uploaded, len(files), failures), fm.window)
+			if uploaded > 0 {
+				fm.LoadObjects(ctx, basePrefix)
+			}
+		})
+	}()
+}
+
+func (fm *FileManager) uploadReader(ctx context.Context, reader io.ReadCloser, path fyne.URI, objectName string, onProgress func(float64)) error {
+	defer reader.Close()
+
+	fileInfo, err := os.Stat(path.Path())
+	if err != nil {
+		return err
+	}
+	totalSize := fileInfo.Size()
+
+	bufreader := bufio.NewReader(reader)
+	detectBytes, err := bufreader.Peek(1024)
+	if err != nil && err != io.EOF {
+		return err
+	}
+
+	mt := mimetype.Detect(detectBytes)
+
+	pr := &ProgressReader{
+		Reader: bufreader,
+		Total:  totalSize,
+		OnProgress: func(bytesRead int64) {
+			progress := 1.0
+			if totalSize > 0 {
+				progress = float64(bytesRead) / float64(totalSize)
+			}
+			onProgress(progress)
+		},
+	}
+
+	return fm.s3svc.UploadObjectReader(ctx, path.Path(), objectName, pr, totalSize, mt.String())
+}
+
+func fileURIs(files []fyne.URI) []fyne.URI {
+	filtered := make([]fyne.URI, 0, len(files))
+	for _, file := range files {
+		if file.Scheme() == "file" {
+			filtered = append(filtered, file)
+		}
+	}
+	return filtered
+}
+
+func uploadObjectName(prefix string, path fyne.URI) string {
+	fullname := path.Name()
+	if prefix != "" && prefix != "root" && prefix != "all" {
+		fullname = prefix + "/" + fullname
+	}
+	return fullname
+}
+
+func appendUploadFailure(failures []string, path fyne.URI, err error) []string {
+	return append(failures, fmt.Sprintf("%s: %v", path.Name(), err))
+}
+
+func uploadSummaryMessage(uploaded, total int, failures []string) string {
+	return transferSummaryMessage("Uploaded", uploaded, total, failures)
+}
+
+func downloadSummaryMessage(downloaded, total int, failures []string) string {
+	return transferSummaryMessage("Downloaded", downloaded, total, failures)
+}
+
+func transferSummaryMessage(action string, completed, total int, failures []string) string {
+	if len(failures) == 0 {
+		if completed == 1 {
+			return fmt.Sprintf("%s 1 file.", action)
+		}
+		return fmt.Sprintf("%s %d files.", action, completed)
+	}
+
+	var msg strings.Builder
+	fmt.Fprintf(&msg, "%s %d of %d files.", action, completed, total)
+	msg.WriteString("\n\nFailed:")
+
+	limit := len(failures)
+	if limit > 5 {
+		limit = 5
+	}
+	for _, failure := range failures[:limit] {
+		msg.WriteString("\n- ")
+		msg.WriteString(failure)
+	}
+	if len(failures) > limit {
+		fmt.Fprintf(&msg, "\n- ... and %d more", len(failures)-limit)
+	}
+
+	return msg.String()
+}
+
+func appendDownloadFailure(failures []string, key string, err error) []string {
+	return append(failures, fmt.Sprintf("%s: %v", key, err))
 }
 
 func (fm *FileManager) handleLink() {
@@ -947,6 +1081,9 @@ func (fm *FileManager) handleDownload() {
 		}
 		go func() {
 			num := len(keys)
+			downloaded := 0
+			failures := make([]string, 0)
+
 			for i, key := range keys {
 				progress := float64(i+1) / float64(num)
 				label := fmt.Sprintf("Downloading %s", key)
@@ -956,26 +1093,39 @@ func (fm *FileManager) handleDownload() {
 					fm.itemsLabel.SetText(label)
 				})
 
-				filePath := uri.Path() + "/" + filepath.Base(key)
+				filePath := filepath.Join(uri.Path(), filepath.Base(key))
 				s3obj, err := fm.s3svc.DownloadObject(fm.context, key)
 				if err != nil {
-					fyne.Do(func() { dialog.ShowError(err, fm.window) })
+					failures = appendDownloadFailure(failures, key, err)
 					continue
 				}
 				f, err := os.Create(filePath)
 				if err != nil {
-					fyne.Do(func() { dialog.ShowError(err, fm.window) })
+					failures = appendDownloadFailure(failures, key, err)
 					s3obj.Close()
 					continue
 				}
 				if _, copyErr := io.Copy(f, s3obj); copyErr != nil {
-					fyne.Do(func() { dialog.ShowError(copyErr, fm.window) })
+					failures = appendDownloadFailure(failures, key, copyErr)
+					f.Close()
+					s3obj.Close()
+					continue
 				}
-				f.Close()
-				s3obj.Close()
+				if err := f.Close(); err != nil {
+					failures = appendDownloadFailure(failures, key, err)
+					s3obj.Close()
+					continue
+				}
+				if err := s3obj.Close(); err != nil {
+					failures = appendDownloadFailure(failures, key, err)
+					continue
+				}
+				downloaded++
 			}
 			fyne.Do(func() {
 				fm.progressBar.Hide()
+				fm.itemsLabel.SetText("")
+				dialog.ShowInformation("Download Complete", downloadSummaryMessage(downloaded, num, failures), fm.window)
 				fm.updateObjectListLocked()
 			})
 		}()
