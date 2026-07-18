@@ -78,7 +78,7 @@ func (cd *ConnectDialog) buildDialogContent() fyne.CanvasObject {
 	split := container.NewHSplit(connectionPanel, formPanel)
 	split.SetOffset(0.3)
 
-	return split
+	return container.NewPadded(split)
 }
 
 func (cd *ConnectDialog) createConnectionsList() *widget.List {
