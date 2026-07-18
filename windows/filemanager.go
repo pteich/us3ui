@@ -29,6 +29,15 @@ const (
 	batchSize         = 500                    // Smaller batches for faster initial response
 	uiUpdateInterval  = 500 * time.Millisecond // Less frequent UI updates
 	maxObjectsDefault = 50000                  // Default limit to prevent loading huge buckets entirely
+	statusLabelWidth  = 320
+	loadingBarWidth   = 100
+	progressBarWidth  = 400
+	prefixInputWidth  = 250
+	maxObjectsWidth   = 80
+	selectColumnWidth = 35
+	nameColumnWidth   = 600
+	sizeColumnWidth   = 70
+	dateColumnWidth   = 155
 )
 
 type loadHandle struct {
@@ -214,10 +223,10 @@ func (fm *FileManager) createObjectList() *widget.Table {
 		},
 	)
 
-	objectList.SetColumnWidth(0, 35)
-	objectList.SetColumnWidth(1, 370)
-	objectList.SetColumnWidth(2, 90)
-	objectList.SetColumnWidth(3, 200)
+	objectList.SetColumnWidth(0, selectColumnWidth)
+	objectList.SetColumnWidth(1, nameColumnWidth)
+	objectList.SetColumnWidth(2, sizeColumnWidth)
+	objectList.SetColumnWidth(3, dateColumnWidth)
 	objectList.ShowHeaderColumn = false
 	objectList.CreateHeader = func() fyne.CanvasObject {
 		b := widget.NewButton("", func() {})
@@ -261,7 +270,6 @@ func (fm *FileManager) createObjectList() *widget.Table {
 func (fm *FileManager) createSearchInput() *widget.Entry {
 	searchInput := widget.NewEntry()
 	searchInput.SetPlaceHolder("Search...")
-	searchInput.Resize(fyne.NewSize(400, searchInput.MinSize().Height))
 	searchInput.OnChanged = func(s string) {
 		fm.searchTerm = s
 		if fm.searchDebounceTimer != nil {
@@ -275,7 +283,6 @@ func (fm *FileManager) createSearchInput() *widget.Entry {
 func (fm *FileManager) createPrefixInput() *widget.Entry {
 	entry := widget.NewEntry()
 	entry.SetPlaceHolder("Prefix (optional)")
-	entry.Resize(fyne.NewSize(300, entry.MinSize().Height))
 	entry.OnSubmitted = func(value string) {
 		if fm.context == nil {
 			return
@@ -288,14 +295,12 @@ func (fm *FileManager) createPrefixInput() *widget.Entry {
 func (fm *FileManager) createProgressBar() *widget.ProgressBar {
 	progressBar := widget.NewProgressBar()
 	progressBar.Hide()
-	progressBar.Resize(fyne.NewSize(400, progressBar.MinSize().Height))
 	return progressBar
 }
 
 func (fm *FileManager) createLoadingBar() *widget.ProgressBarInfinite {
 	progressBar := widget.NewProgressBarInfinite()
 	progressBar.Hide()
-	progressBar.Resize(fyne.NewSize(100, progressBar.MinSize().Height))
 	return progressBar
 }
 
@@ -314,12 +319,12 @@ func (fm *FileManager) createBottomContainer() *fyne.Container {
 	)
 
 	return container.NewHBox(
-		container.NewGridWrap(fyne.NewSize(320, fm.itemsLabel.MinSize().Height), fm.itemsLabel),
+		container.NewGridWrap(fyne.NewSize(statusLabelWidth, fm.itemsLabel.MinSize().Height), fm.itemsLabel),
 		dropHint,
 		layout.NewSpacer(),
 		fm.stopBtn,
-		container.NewGridWrap(fyne.NewSize(100, fm.progressBar.MinSize().Height), fm.loadingBar),
-		container.NewGridWrap(fyne.NewSize(400, fm.progressBar.MinSize().Height), fm.progressBar),
+		container.NewGridWrap(fyne.NewSize(loadingBarWidth, fm.progressBar.MinSize().Height), fm.loadingBar),
+		container.NewGridWrap(fyne.NewSize(progressBarWidth, fm.progressBar.MinSize().Height), fm.progressBar),
 	)
 }
 
@@ -407,10 +412,10 @@ func (fm *FileManager) createTopContainer(btnBar *fyne.Container) *fyne.Containe
 
 	prefixRow := container.NewHBox(
 		widget.NewLabel("Prefix:"),
-		container.NewGridWrap(fyne.NewSize(250, fm.prefixInput.MinSize().Height), fm.prefixInput),
+		container.NewGridWrap(fyne.NewSize(prefixInputWidth, fm.prefixInput.MinSize().Height), fm.prefixInput),
 		loadBtn,
 		widget.NewLabel("Max objects:"),
-		container.NewGridWrap(fyne.NewSize(80, fm.maxObjsInput.MinSize().Height), fm.maxObjsInput),
+		container.NewGridWrap(fyne.NewSize(maxObjectsWidth, fm.maxObjsInput.MinSize().Height), fm.maxObjsInput),
 		fm.loadMoreBtn,
 		layout.NewSpacer(),
 	)
