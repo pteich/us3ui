@@ -4,7 +4,9 @@ import (
 	"testing"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/storage"
+	fynetest "fyne.io/fyne/v2/test"
 	minio "github.com/minio/minio-go/v7"
 )
 
@@ -64,6 +66,37 @@ func TestFilterObjectsPrefixOnly(t *testing.T) {
 		if len(obj.Key) < 4 || obj.Key[:4] != "logs" {
 			t.Errorf("unexpected key %q — does not start with 'logs'", obj.Key)
 		}
+	}
+}
+
+func TestUpdateTreeDeduplicatesPrefixChildren(t *testing.T) {
+	fynetest.NewApp()
+
+	treeData := binding.NewStringTree()
+	fm := &FileManager{
+		treeData: treeData,
+		prefixes: map[string]bool{
+			"data/reports":     true,
+			"logs/app":         true,
+			"logs/app/archive": true,
+			"logs/system":      true,
+		},
+	}
+
+	fm.updateTree()
+
+	ids, values, err := treeData.Get()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assertStringSet(t, ids[""], []string{"all", "root"})
+	assertStringSet(t, ids["root"], []string{"data", "logs"})
+	assertStringSet(t, ids["logs"], []string{"logs/app", "logs/system"})
+	assertStringSet(t, ids["logs/app"], []string{"logs/app/archive"})
+
+	if values["logs"] != "logs" || values["logs/app"] != "app" || values["logs/app/archive"] != "archive" {
+		t.Fatalf("unexpected tree values: %v", values)
 	}
 }
 
@@ -156,4 +189,22 @@ func keysOf(objs []minio.ObjectInfo) []string {
 		keys[i] = o.Key
 	}
 	return keys
+}
+
+func assertStringSet(t *testing.T, got, want []string) {
+	t.Helper()
+
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+
+	seen := make(map[string]bool, len(got))
+	for _, value := range got {
+		seen[value] = true
+	}
+	for _, value := range want {
+		if !seen[value] {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+	}
 }

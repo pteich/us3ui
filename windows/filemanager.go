@@ -428,10 +428,25 @@ func (fm *FileManager) updateTree() {
 	values := make(map[string]string)
 
 	ids[""] = []string{"all", "root"}
+	ids["root"] = make([]string, 0)
 	values["all"] = "All (Flat view)"
 	values["root"] = "Root"
 
-	rootChildren := make([]string, 0)
+	seenChildren := make(map[string]map[string]struct{})
+	appendChild := func(parentPath, childPath, label string) {
+		seen := seenChildren[parentPath]
+		if seen == nil {
+			seen = make(map[string]struct{})
+			seenChildren[parentPath] = seen
+		}
+		if _, exists := seen[childPath]; exists {
+			return
+		}
+
+		seen[childPath] = struct{}{}
+		ids[parentPath] = append(ids[parentPath], childPath)
+		values[childPath] = label
+	}
 
 	for prefix := range fm.prefixes {
 		parts := strings.Split(prefix, "/")
@@ -445,24 +460,16 @@ func (fm *FileManager) updateTree() {
 			currentPath += part
 
 			if i == 0 {
-				if !contains(rootChildren, currentPath) {
-					rootChildren = append(rootChildren, currentPath)
-				}
-				values[currentPath] = part
+				appendChild("root", currentPath, part)
 				continue
 			}
 
 			if _, exists := ids[parentPath]; !exists {
 				ids[parentPath] = make([]string, 0)
 			}
-			if !contains(ids[parentPath], currentPath) {
-				ids[parentPath] = append(ids[parentPath], currentPath)
-				values[currentPath] = part
-			}
+			appendChild(parentPath, currentPath, part)
 		}
 	}
-
-	ids["root"] = rootChildren
 
 	if err := fm.treeData.Set(ids, values); err != nil {
 		fmt.Printf("Error updating tree: %v\n", err)
@@ -541,20 +548,21 @@ func (fm *FileManager) removeObject(key string) {
 }
 
 func (fm *FileManager) updateObjectList() {
-	fyne.Do(fm.updateObjectListLocked)
+	fyne.Do(func() {
+		fm.updateObjectListLocked(true)
+	})
 }
 
-func (fm *FileManager) updateObjectListLocked() {
+func (fm *FileManager) updateObjectListLocked(scrollToTop bool) {
 	filtered := fm.filterObjectsLocked()
 
 	fm.objectList.UnselectAll()
-	fm.objectList.ScrollTo(widget.TableCellID{Row: 0, Col: 0})
-
-	fm.currentObjects = nil
-	fm.objectList.Refresh()
-
 	fm.currentObjects = filtered
 	fm.objectList.Refresh()
+
+	if scrollToTop && len(filtered) > 0 {
+		fm.objectList.ScrollTo(widget.TableCellID{Row: 0, Col: 0})
+	}
 
 	fm.updateItemsLabel()
 	fm.tree.Refresh()
@@ -695,7 +703,7 @@ func (fm *FileManager) loadObjectsAsync(loadCtx context.Context, handle *loadHan
 				}
 				fm.hasMoreObjects = true
 				fm.updateTree()
-				fm.updateObjectListLocked()
+				fm.updateObjectListLocked(false)
 			})
 			return
 		}
@@ -727,7 +735,7 @@ func (fm *FileManager) loadObjectsAsync(loadCtx context.Context, handle *loadHan
 					return
 				}
 				fm.updateTree()
-				fm.updateObjectListLocked()
+				fm.updateObjectListLocked(false)
 			})
 			return
 		}
@@ -746,6 +754,7 @@ func (fm *FileManager) loadObjectsAsync(loadCtx context.Context, handle *loadHan
 		shouldUpdate := firstBatch || lastStatus.IsZero() ||
 			time.Since(lastStatus) >= uiUpdateInterval ||
 			len(batch) < currentBatchSize
+		scrollToTop := firstBatch
 
 		fyne.Do(func() {
 			if fm.loadHandle != handle {
@@ -757,7 +766,7 @@ func (fm *FileManager) loadObjectsAsync(loadCtx context.Context, handle *loadHan
 			}
 			if shouldUpdate {
 				fm.updateTree()
-				fm.updateObjectListLocked()
+				fm.updateObjectListLocked(scrollToTop)
 				fm.itemsLabel.SetText(fmt.Sprintf("Loaded %d objects…", len(fm.allObjects)))
 			}
 		})
@@ -778,7 +787,7 @@ func (fm *FileManager) loadObjectsAsync(loadCtx context.Context, handle *loadHan
 				}
 				fm.hasMoreObjects = false
 				fm.updateTree()
-				fm.updateObjectListLocked()
+				fm.updateObjectListLocked(false)
 			})
 			return
 		}
@@ -821,7 +830,7 @@ func (fm *FileManager) handleDelete() {
 					fm.deleteBtn.Disable()
 					fm.downloadBtn.Disable()
 					fm.linkBtn.Disable()
-					fm.updateObjectListLocked()
+					fm.updateObjectListLocked(false)
 				})
 			}()
 		}, fm.window)
@@ -1126,7 +1135,7 @@ func (fm *FileManager) handleDownload() {
 				fm.progressBar.Hide()
 				fm.itemsLabel.SetText("")
 				dialog.ShowInformation("Download Complete", downloadSummaryMessage(downloaded, num, failures), fm.window)
-				fm.updateObjectListLocked()
+				fm.updateObjectListLocked(false)
 			})
 		}()
 
