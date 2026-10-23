@@ -3,7 +3,7 @@
 <img src="website/Icon.svg" alt="Icon" height="50px" width="50px" />
 
 Universal S3 UI is a lightweight, cross-platform graphical user interface for managing S3-compatible object storage services, with a particular focus on non-AWS implementations.
-Built with Go and Fyne, this application provides a seamless experience across macOS, Windows, and Linux and is provided as a native app.
+Built with Go and [MyGo](https://github.com/egoist/mygo) (native, GPU-drawn UI, no cgo), this application provides a seamless experience across macOS, Windows, and Linux and is provided as a native app.
 [https://us3ui.pteich.de](https://us3ui.pteich.de)
 
 ## Features
@@ -18,18 +18,16 @@ Built with Go and Fyne, this application provides a seamless experience across m
   - Upload local files to your bucket
   - Download selected files from your bucket to your local machine
   - Delete objects
-  - Select files and generate temporary download links valid for one hour
+  - Select files and generate temporary download links, valid from 15 minutes up to 7 days
   - Refresh bucket contents
 - **Asynchronous Loading**: Load objects without blocking the UI
 - **Search Functionality**: Easily find objects with simple fulltext search
 - **Progress Tracking**: Visual progress bar for long-running operations
 - **Pagination**: Load objects in batches for improved performance
 - **Detailed Object Information**: View object name, size, and last modified date
-- **Responsive UI**: Resizable columns for better visibility of object details
-
-## Planned Features
-
-- _Sorting_: Sort objects by name, size, or last modified date
+- **Responsive UI**: Sortable, resizable columns for better visibility of object details
+- **Sync**: Copy objects between two saved connections without touching local disk
+- **Auto-updates**: Installed apps update themselves from signed GitHub releases
 
 ## ❤️ Sponsoring
 
@@ -77,7 +75,16 @@ The pre-built binaries are currently not code-signed. macOS Gatekeeper and Windo
 ### Prerequisites
 
 - Any S3-compatible storage service credentials
-- For building from source: Go programming language
+- For building from source: Go (no C toolchain needed)
+
+### Building from source
+
+```bash
+make dev        # development app bundle with live reload
+make app        # packaged app for this platform into build/<os>-<arch>/
+make build-all  # macOS, Windows and Linux packages from any machine
+make test
+```
 
 ### Configuration
 
@@ -119,7 +126,6 @@ The configuration values can also be preset using CLI flags or environment varia
    - Select one or multiple objects to download or delete files
    - Use upload to add new local files to your bucket
    - Select files and generate temporary download links
-   - Click "Exit" to close the application
 
 ## Screenshots
 
@@ -138,7 +144,12 @@ _Main interface showing the list of objects in your bucket_
 ### Select files to download
 
 ![File List](website/screenshots/selectfiles.png)
-_Select one or multiple objects by clicking the checkbox in the first column to download or delete_
+_Select one or multiple objects (Cmd/Ctrl-click, Shift-click) to download or delete_
+
+### Select files to download
+
+![File List](website/screenshots/share-link.png)
+_Create a pre-signed link that expires after a selected time_
 
 ### Upload Dialog
 
@@ -149,7 +160,7 @@ _File upload interface for adding new objects to your bucket_
 
 Built using:
 
-- [Fyne](https://fyne.io/) - Cross-platform GUI toolkit for Go
+- [MyGo](https://github.com/egoist/mygo) - Native desktop apps in Go: GPU-drawn UI, pure Go (no cgo), signed auto-updates
 - [MinIO Go Client](https://github.com/minio/minio-go) - S3-compatible storage client
 
 ## Security Note

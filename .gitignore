@@ -1,2 +1,7 @@
 .idea
-fyne-cross
+.DS_Store
+/us3ui
+/build/
+/.mygo/
+/dist
+/fyne-cross

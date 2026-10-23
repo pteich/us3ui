@@ -1,28 +1,42 @@
-BINARY=us3ui
-BUILD_TIME=`date +%FT%T%z`
+.PHONY: build run dev app build-all install test clean
 
-default: build
+# The mygo CLI is a Go tool dependency (go.mod `tool`): no install step.
+# Everything is pure Go (no cgo), so any machine builds every platform.
 
-clean:
-	rm -rf ./bin
+# ── Development ───────────────────────────────────────────────────────────────
 
+# Run a development app bundle, rebuilt and restarted as files change
+dev:
+	go tool mygo dev
+
+# Run directly, without bundling or live reload
+run:
+	go run ./cmd/desktop/
+
+# Build a plain binary for the current OS/arch (no bundling)
 build:
-	CGO_CFLAGS="-I/home/linuxbrew/.linuxbrew/opt/libxi/include -I/home/linuxbrew/.linuxbrew/opt/libxinerama/include -I/home/linuxbrew/.linuxbrew/opt/libxfixes/include -I/home/linuxbrew/.linuxbrew/opt/libxrender/include -I/home/linuxbrew/.linuxbrew/opt/libxcursor/include -I/home/linuxbrew/.linuxbrew/opt/libx11/include -I/home/linuxbrew/.linuxbrew/opt/libxext/include -I/home/linuxbrew/.linuxbrew/opt/xorgproto/include -I/home/linuxbrew/.linuxbrew/opt/libxrandr/include  -I/home/linuxbrew/.linuxbrew/opt/mesa/include" \
-	CGO_LDFLAGS="-L/home/linuxbrew/.linuxbrew/opt/libxxf86vm/lib -L/home/linuxbrew/.linuxbrew/opt/libxi/lib -L/home/linuxbrew/.linuxbrew/opt/libxinerama/lib -L/home/linuxbrew/.linuxbrew/opt/libxfixes/lib -L/home/linuxbrew/.linuxbrew/opt/libxrender/lib -L/home/linuxbrew/.linuxbrew/opt/libxcursor/lib -L/home/linuxbrew/.linuxbrew/opt/libx11/lib -L/home/linuxbrew/.linuxbrew/opt/libxext/lib -L/home/linuxbrew/.linuxbrew/opt/xorgproto/lib -L/home/linuxbrew/.linuxbrew/opt/libxrandr/lib  -L/home/linuxbrew/.linuxbrew/opt/mesa/lib" \
-	PKG_CONFIG_PATH="/home/linuxbrew/.linuxbrew/lib/pkgconfig" \
-	go build -a -o ./bin/${BINARY}-${BUILD_TIME} *.go
-
-build-linux:
-	GOARCH=amd64 \
-	GOOS=linux \
-	go build -ldflags "-X main.Version=${BUILD_TIME}" -a -o ./bin/${BINARY}-${BUILD_TIME} *.go
-
-deps:
-	go mod tidy;
+	go build -o us3ui ./cmd/desktop/
 
 test:
 	go test ./...
 
-fynetools:
-	go install fyne.io/tools/cmd/fyne@latest
-	go install github.com/fyne-io/fyne-cross@latest
+# ── Packaged apps (into build/<os>-<arch>/) ───────────────────────────────────
+
+# Package for the current platform (.app on macOS, .exe on Windows, binary + .deb on Linux)
+app:
+	go tool mygo build -skip-dmg
+
+# Package for every platform
+build-all:
+	go tool mygo build -skip-dmg -platform darwin/arm64,darwin/amd64,windows/amd64,windows/arm64,linux/amd64
+
+# Install into /Applications (ad-hoc signed by mygo build, no Apple certificate required)
+install: app
+	$(eval ARCH := $(shell go env GOARCH))
+	rm -rf "/Applications/Universal S3 GUI.app"
+	cp -R "build/darwin-$(ARCH)/Universal S3 GUI.app" "/Applications/Universal S3 GUI.app"
+	xattr -cr "/Applications/Universal S3 GUI.app"
+
+# ── Cleanup ───────────────────────────────────────────────────────────────────
+clean:
+	rm -rf us3ui build .mygo
