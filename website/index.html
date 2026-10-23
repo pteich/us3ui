@@ -14,7 +14,7 @@
     <meta property="og:title" content="us3ui - Universal S3 File Manager" />
     <meta property="og:description"
         content="Native desktop application for managing files on S3-compatible storage. Supports MinIO, Ceph, AWS, and more." />
-    <meta property="og:image" content="https://raw.githubusercontent.com/pteich/us3ui/main/Icon.png" />
+    <meta property="og:image" content="https://us3ui.pteich.de/Icon.png" />
     <meta property="og:url" content="https://us3ui.pteich.de/" />
     <meta property="og:type" content="website" />
 
@@ -22,20 +22,19 @@
     <meta name="twitter:title" content="us3ui - S3 Object Storage Client" />
     <meta name="twitter:description"
         content="Fast, native desktop client for any S3-compatible object storage. Available for Windows, macOS, and Linux." />
-    <meta name="twitter:image" content="https://raw.githubusercontent.com/pteich/us3ui/main/screenshots/filelist.png" />
+    <meta name="twitter:image" content="https://us3ui.pteich.de/screenshots/filelist.png" />
 
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@400;500;700&display=swap"
-        rel="stylesheet" />
+    <link rel="stylesheet" href="fonts/fonts.css" />
 
     <script type="application/ld+json">
             {
                 "@context": "https://schema.org",
                 "@type": "SoftwareApplication",
                 "name": "us3ui",
+                "url": "https://us3ui.pteich.de/",
+                "codeRepository": "https://github.com/pteich/us3ui",
+                "license": "https://opensource.org/licenses/MIT",
+                "author": { "@type": "Person", "name": "Peter Teich", "url": "https://peter-teich.de/" },
                 "applicationCategory": "Utility",
                 "operatingSystem": ["Windows", "macOS", "Linux"],
                 "description": "Native desktop client for S3-compatible object storage services like MinIO, AWS, and Ceph.",
@@ -572,7 +571,6 @@
                 a fast UI built for daily operations on MinIO, Ceph, AWS, and more.
             </p>
             <div class="download-section">
-                <p class="version">Latest Version: v0.8.0</p>
                 <a href="https://github.com/pteich/us3ui/releases/latest" class="download-btn">
                     View Downloads
                 </a>
@@ -632,7 +630,7 @@
                 </div>
                 <div class="feature-card">
                     <h3>Flexible Viewing</h3>
-                    <p>Toggle between a hierarchical folder structure or a flat list of all objects.</p>
+                    <p>Browse a folder tree or all objects at once, with sortable columns for name, size and date.</p>
                 </div>
                 <div class="feature-card">
                     <h3>Easy Uploads</h3>
@@ -642,7 +640,14 @@
                 </div>
                 <div class="feature-card">
                     <h3>Shareable Links</h3>
-                    <p>Create temporary, pre-signed URLs to share private objects securely.</p>
+                    <p>Create temporary, pre-signed URLs to share private objects securely. Choose how long a link stays valid, from 15 minutes up to 7 days.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Sync Between Connections</h3>
+                    <p>
+                        Copy objects from one saved connection to another with a dry run first. Data streams
+                        directly between the two servers, never through a local disk.
+                    </p>
                 </div>
                 <div class="feature-card">
                     <h3>Operation Status</h3>
@@ -656,29 +661,20 @@
 
     <section class="features" id="unsigned">
         <div class="container">
-            <h2 class="section-title">Installation Notes</h2>
+            <h2 class="section-title">Installation</h2>
             <p class="section-lead">
-                us3ui is distributed as a portable binary and is not currently code-signed. First-time launch
-                may require manual approval.
+                Download the macOS disk image, the Windows installer or the Linux package from the
+                <a href="https://github.com/pteich/us3ui/releases/latest">latest release</a> on GitHub.
+                Installed apps update themselves; each update is cryptographically signed and verified
+                before it is applied.
             </p>
-
-            <h3>macOS</h3>
-            <ol>
-                <li>Extract the downloaded archive.</li>
-                <li>Move the app to your Applications folder.</li>
-                <li>Right-click the app icon and select <strong>Open</strong>. Confirm the security prompt.</li>
-                <li>If the app is blocked, go to <strong>System Settings → Privacy &amp; Security</strong> and allow the
-                    application to run.</li>
-            </ol>
-
-            <h3>Windows</h3>
-            <ol>
-                <li>Extract the ZIP file.</li>
-                <li>Run the executable.</li>
-                <li>If Microsoft Defender SmartScreen appears, click <strong>More info</strong> and then <strong>Run
-                        anyway</strong>.</li>
-            </ol>
-
+            <p class="section-lead">
+                Builds are not yet signed with an Apple or Microsoft developer certificate, so your system may
+                ask for confirmation on first launch. The source code and all release assets are public on
+                GitHub; the
+                <a href="https://github.com/pteich/us3ui#running-on-macos-and-windows-unsigned-builds">README</a>
+                explains what to expect.
+            </p>
         </div>
     </section>
 
@@ -703,9 +699,9 @@
                     </p>
                 </div>
                 <div class="feature-card">
-                    <h3>Portable Setup</h3>
+                    <h3>Automatic Updates</h3>
                     <p>
-                        No installers required. Download, extract, and run the app.
+                        Installed apps check GitHub releases and update themselves with signed update files.
                     </p>
                 </div>
             </div>
@@ -721,6 +717,8 @@
                     alt="List view of all files and progress bar while loading file infos" />
                 <img src="screenshots/selectfiles.png"
                     alt="Several actions when files are selected: download, delete, generate download link" />
+                <img src="screenshots/share-link.png"
+                    alt="Share links dialog with a selectable expiration time from 15 minutes to 7 days and a copy button for each pre-signed link." />
                 <img src="screenshots/upload-file.png"
                     alt="Upload files dialog. You can also drag and drop files to the list view for uploading them." />
             </div>
@@ -773,8 +771,8 @@
             </p>
             <div class="trust-grid">
                 <div class="trust-card">
-                    <h3>Contact & Imprint</h3>
-                    <p><a href="https://peter-teich.de/">Peter Teich</a></p>
+                    <h3>Contact &amp; Imprint</h3>
+                    <p><a href="https://peter-teich.de/">Peter Teich</a> · <a href="impressum.html">Impressum</a></p>
                     <p>
                         Email: <a href="mailto:mail@peter-teich.de">mail@peter-teich.de</a>
                     </p>
@@ -782,7 +780,7 @@
 
                 <div class="trust-card">
                     <h3>Privacy</h3>
-                    <p>This site uses no cookies and no analytics scripts.</p>
+                    <p>This site uses no cookies, no analytics and no third-party fonts or scripts. <a href="datenschutz.html">Privacy policy</a></p>
                 </div>
                 <div class="trust-card">
                     <h3>Source Code</h3>
@@ -819,7 +817,6 @@
                     <p>Crafted using</p>
                     <div class="tech-badges">
                         <a href="https://go.dev" class="tech-badge" target="_blank" rel="noopener noreferrer">
-                            <img src="https://go.dev/images/go-logo-white.svg" alt="Go" height="20" />
                             Go
                         </a>
                         <span class="divider">&amp;</span>
@@ -833,6 +830,10 @@
                     <a href="https://github.com/pteich/us3ui">GitHub</a>
                 </p>
                 <p class="license">Released under MIT License</p>
+                <p class="license">
+                    <a href="impressum.html">Impressum</a> ·
+                    <a href="datenschutz.html">Datenschutz</a>
+                </p>
             </div>
         </div>
     </footer>
