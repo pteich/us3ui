@@ -150,6 +150,14 @@ func RunSync(ctx context.Context, src, dst *Service, actions []SyncAction, worke
 }
 
 func copyOne(ctx context.Context, src, dst *Service, a SyncAction, onBytes func(int)) error {
+	info, err := src.client.StatObject(ctx, src.bucketName, a.SrcKey, minio.StatObjectOptions{})
+	if err != nil {
+		return err
+	}
+	contentType := info.ContentType
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
 	obj, err := src.DownloadObject(ctx, a.SrcKey)
 	if err != nil {
 		return err
@@ -157,7 +165,7 @@ func copyOne(ctx context.Context, src, dst *Service, a SyncAction, onBytes func(
 	defer obj.Close()
 
 	reader := &countingReader{r: obj, on: onBytes}
-	return dst.UploadObjectReader(ctx, a.DstKey, a.DstKey, reader, a.Size, a.ContentType)
+	return dst.UploadObjectReader(ctx, a.DstKey, a.DstKey, reader, a.Size, contentType)
 }
 
 // listAll pages through every object under prefix using the existing batch lister.

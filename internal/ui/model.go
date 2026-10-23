@@ -41,10 +41,13 @@ func newDirTree() *dirTree {
 // add registers dir ("a/b/c") and all its parents.
 func (t *dirTree) add(dir string) {
 	parent := ""
+	end := 0
 	for _, part := range strings.Split(dir, "/") {
-		child := part
-		if parent != "" {
-			child = parent + "/" + part
+		end += len(part)
+		child := dir[:end]
+		end++ // include the separator in the next path
+		if child == "" {
+			continue // the root cannot be its own child
 		}
 		if _, ok := t.seen[child]; !ok {
 			t.seen[child] = struct{}{}

@@ -23,12 +23,13 @@ type syncState struct {
 	names                []string
 	conns                map[string]config.S3Config
 
-	summary  string
-	scanning bool
-	copying  bool
-	plan     []s3.SyncAction
-	cancel   context.CancelFunc
-	logList  ui.ListState
+	summary    string
+	scanning   bool
+	copying    bool
+	plan       []s3.SyncAction
+	planInputs *syncInputs
+	cancel     context.CancelFunc
+	logList    ui.ListState
 
 	// Written by the copy workers, read by the view.
 	mu       sync.Mutex
@@ -37,6 +38,29 @@ type syncState struct {
 	logLines []string
 	failures []string
 	tick     throttle
+}
+
+// syncInputs binds a dry run to the connections and prefixes it scanned.
+type syncInputs struct {
+	src, dst             config.S3Config
+	srcPrefix, dstPrefix string
+}
+
+func (sy *syncState) inputs() syncInputs {
+	return syncInputs{
+		src: sy.conns[sy.src], dst: sy.conns[sy.dst],
+		srcPrefix: sy.srcPrefix, dstPrefix: sy.dstPrefix,
+	}
+}
+
+func (sy *syncState) invalidatePlan() {
+	if len(sy.plan) == 0 || sy.copying || sy.scanning {
+		return
+	}
+	if sy.planInputs == nil || *sy.planInputs != sy.inputs() {
+		sy.plan, sy.planInputs = nil, nil
+		sy.summary = "Settings changed. Run Dry Run again."
+	}
 }
 
 func (a *app) openSync() {
@@ -83,6 +107,7 @@ func (a *app) syncModal(c *ui.Context) {
 				})
 			})
 
+			sy.invalidatePlan()
 			sy.mu.Lock()
 			frac, current := sy.frac, sy.current
 			lines := sy.logLines
@@ -162,7 +187,9 @@ func (a *app) syncDryRun() {
 		return
 	}
 	srcPrefix, dstPrefix := sy.srcPrefix, sy.dstPrefix
+	inputs := sy.inputs()
 	sy.scanning, sy.plan = true, nil
+	sy.planInputs = nil
 	sy.summary = "Scanning both sides..."
 	sy.mu.Lock()
 	sy.logLines = nil
@@ -178,6 +205,7 @@ func (a *app) syncDryRun() {
 				return
 			}
 			sy.plan = plan
+			sy.planInputs = &inputs
 			var bytes int64
 			for _, p := range plan {
 				bytes += p.Size
@@ -189,6 +217,10 @@ func (a *app) syncDryRun() {
 
 func (a *app) syncStart() {
 	sy := &a.sync
+	sy.invalidatePlan()
+	if len(sy.plan) == 0 || sy.scanning || sy.copying {
+		return
+	}
 	srcCfg, dstCfg, ok := a.syncSelection()
 	if !ok {
 		return
@@ -238,6 +270,7 @@ func (a *app) syncStart() {
 		a.post(func() {
 			cancel()
 			sy.cancel, sy.copying, sy.plan = nil, false, nil
+			sy.planInputs = nil
 			sy.mu.Lock()
 			failures := append([]string(nil), sy.failures...)
 			sy.mu.Unlock()

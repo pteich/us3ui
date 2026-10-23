@@ -24,6 +24,13 @@ type bucketState struct {
 	askDelete       bool
 }
 
+func (b *bucketState) reset(svc *s3.Service) {
+	b.svc, b.open, b.row = svc, true, -1
+	b.buckets = nil
+	b.addOpen, b.askDelete = false, false
+	b.list.Selected = &b.row
+}
+
 // openBuckets manages the buckets of the connection in the connect form.
 func (a *app) openBuckets() {
 	svc, err := s3.New(a.conn.config())
@@ -31,9 +38,7 @@ func (a *app) openBuckets() {
 		a.alertErr(err)
 		return
 	}
-	b := &a.buckets
-	b.svc, b.open, b.row = svc, true, -1
-	b.list.Selected = &b.row
+	a.buckets.reset(svc)
 	a.refreshBuckets()
 }
 
@@ -44,13 +49,22 @@ func (a *app) refreshBuckets() {
 		list, err := svc.ListBuckets(context.Background())
 		sort.Slice(list, func(i, j int) bool { return list[i].Name < list[j].Name })
 		a.post(func() {
-			if err != nil {
-				a.alertErr(err)
-				return
-			}
-			b.buckets, b.row = list, -1
+			a.applyBuckets(svc, list, err)
 		})
 	}()
+}
+
+func (a *app) applyBuckets(svc *s3.Service, list []minio.BucketInfo, err error) {
+	b := &a.buckets
+	if b.svc != svc {
+		return
+	}
+	if err != nil {
+		a.alertErr(err)
+		return
+	}
+	b.buckets, b.row = list, -1
+	b.askDelete = false
 }
 
 func (a *app) bucketsModal(c *ui.Context) {
@@ -123,6 +137,9 @@ func (a *app) createBucket() {
 	go func() {
 		err := svc.CreateBucket(context.Background(), name, region)
 		a.post(func() {
+			if b.svc != svc {
+				return
+			}
 			if err != nil {
 				a.alertErr(err)
 				return
@@ -137,6 +154,9 @@ func (a *app) deleteBucket(name string) {
 	go func() {
 		err := svc.DeleteBucket(context.Background(), name)
 		a.post(func() {
+			if a.buckets.svc != svc {
+				return
+			}
 			if err != nil {
 				a.alertErr(err)
 				return
