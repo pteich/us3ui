@@ -3,4 +3,4 @@ Website = "https://github.com/pteich/us3ui"
 [Details]
 Name = "Universal s3 GUI"
 ID = "de.peter-teich.us3ui"
-Version = "0.11.0"
+Version = "0.12.0"

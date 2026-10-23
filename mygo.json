@@ -1,7 +1,7 @@
 {
   "name": "Universal S3 GUI",
   "identifier": "de.peter-teich.us3ui",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "icon": "website/Icon.png",
   "main": "./cmd/desktop",
   "out": "build",
