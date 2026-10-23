@@ -146,6 +146,11 @@ _Main interface showing the list of objects in your bucket_
 ![File List](website/screenshots/selectfiles.png)
 _Select one or multiple objects (Cmd/Ctrl-click, Shift-click) to download or delete_
 
+### Select files to download
+
+![File List](website/screenshots/share-link.png)
+_Create a pre-signed link that expires after a selected time_
+
 ### Upload Dialog
 
 ![Upload Dialog](website/screenshots/upload-file.png)

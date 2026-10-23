@@ -21,6 +21,9 @@ type Settings struct {
 
 func New() (*Config, error) {
 	configPath := configdir.LocalConfig(Name)
+	if dir := os.Getenv("US3UI_CONFIG_DIR"); dir != "" {
+		configPath = dir
+	}
 	if err := configdir.MakePath(configPath); err != nil {
 		return nil, err
 	}
