@@ -1,14 +1,14 @@
 package ui
 
 import (
-	"github.com/pteich/us3ui/config"
-	"github.com/pteich/us3ui/s3"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/minio/minio-go/v7"
+	"github.com/pteich/us3ui/config"
+	"github.com/pteich/us3ui/s3"
+	"github.com/pteich/us3ui/storage"
 )
 
 func TestByteCountSI(t *testing.T) {
@@ -31,15 +31,15 @@ func TestByteCountSI(t *testing.T) {
 	}
 }
 
-func objs(keys ...string) []minio.ObjectInfo {
-	out := make([]minio.ObjectInfo, len(keys))
+func objs(keys ...string) []storage.ObjectInfo {
+	out := make([]storage.ObjectInfo, len(keys))
 	for i, k := range keys {
-		out[i] = minio.ObjectInfo{Key: k}
+		out[i] = storage.ObjectInfo{Key: k}
 	}
 	return out
 }
 
-func keys(o []minio.ObjectInfo) []string {
+func keys(o []storage.ObjectInfo) []string {
 	out := make([]string, len(o))
 	for i := range o {
 		out[i] = o[i].Key

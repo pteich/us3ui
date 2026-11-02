@@ -8,7 +8,19 @@ import (
 	"github.com/pteich/us3ui/config"
 	"github.com/pteich/us3ui/connections"
 	"github.com/pteich/us3ui/s3"
+	"github.com/pteich/us3ui/storage"
 )
+
+// openStore connects to the server described by cfg and returns it as a
+// Store of the connection's type.
+func openStore(cfg config.S3Config) (storage.Store, error) {
+	switch cfg.ConnType() {
+	case config.TypeS3:
+		return s3.New(cfg)
+	default:
+		return nil, fmt.Errorf("unsupported connection type %q", cfg.ConnType())
+	}
+}
 
 type connectState struct {
 	open bool
@@ -126,8 +138,10 @@ func (a *app) connectModal(c *ui.Context) {
 					ui.Field(c, "Bucket", func() {
 						ui.Row(c).Gap(8).Children(func() {
 							ui.TextInput(c.Key("bucket"), &cs.bucket).Grow(1)
-							if ui.Button(c, "Manage Buckets").Clicked() {
-								a.openBuckets()
+							if storage.CapsFor(cs.config().ConnType()).Buckets {
+								if ui.Button(c, "Manage Buckets").Clicked() {
+									a.openBuckets()
+								}
 							}
 						})
 					})
@@ -190,12 +204,13 @@ func (a *app) connect() {
 			return
 		}
 	}
-	svc, err := s3.New(cfg)
+	svc, err := openStore(cfg)
 	if err != nil {
 		a.alertErr(err)
 		return
 	}
 	a.svc = svc
+	a.linker, _ = svc.(storage.Presigner)
 	cs.open = false
 	a.loadObjects(cfg.Prefix)
 }

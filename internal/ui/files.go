@@ -17,9 +17,8 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/gabriel-vasile/mimetype"
-	"github.com/minio/minio-go/v7"
 
-	"github.com/pteich/us3ui/s3"
+	"github.com/pteich/us3ui/storage"
 )
 
 const (
@@ -73,8 +72,8 @@ type filesState struct {
 	gen     int // load generation: results of older loads are dropped
 	cancel  context.CancelFunc
 
-	all     []minio.ObjectInfo
-	visible []minio.ObjectInfo
+	all     []storage.ObjectInfo
+	visible []storage.ObjectInfo
 	tree    *dirTree
 	dir     string // selected directory, "" for all
 
@@ -116,7 +115,7 @@ func (f *filesState) refilter() {
 	rows := filterObjects(f.all, f.search, f.dir)
 	if f.sort.Column != "" {
 		rows = slices.Clone(rows)
-		slices.SortStableFunc(rows, func(a, b minio.ObjectInfo) int {
+		slices.SortStableFunc(rows, func(a, b storage.ObjectInfo) int {
 			var d int
 			switch f.sort.Column {
 			case "size":
@@ -202,8 +201,10 @@ func (a *app) filesView(c *ui.Context) {
 				if ui.Button(c, "Download").Disabled(nSel == 0).Clicked() {
 					a.download()
 				}
-				if ui.Button(c, "Link").Disabled(nSel == 0).Clicked() {
-					a.makeLinks()
+				if a.linker != nil {
+					if ui.Button(c, "Link").Disabled(nSel == 0).Clicked() {
+						a.makeLinks()
+					}
 				}
 				if ui.Button(c, "Delete").Disabled(nSel == 0).Clicked() {
 					f.askDelete = true
@@ -458,7 +459,7 @@ func (a *app) deleteSelected() {
 			deleted[k] = struct{}{}
 		}
 		a.post(func() {
-			f.all = slices.DeleteFunc(f.all, func(o minio.ObjectInfo) bool {
+			f.all = slices.DeleteFunc(f.all, func(o storage.ObjectInfo) bool {
 				_, ok := deleted[o.Key]
 				return ok
 			})
@@ -472,6 +473,9 @@ func (a *app) deleteSelected() {
 }
 
 func (a *app) makeLinks() {
+	if a.linker == nil {
+		return // the connection's protocol cannot presign
+	}
 	f := &a.files
 	f.linkKeys = a.selectedKeys()
 	slices.Sort(f.linkKeys)
@@ -485,12 +489,12 @@ func (a *app) makeLinks() {
 // older one still in flight.
 func (a *app) signLinks() {
 	f := &a.files
-	svc, keys, d := a.svc, slices.Clone(f.linkKeys), linkExpiry(f.linkExpire)
+	linker, keys, d := a.linker, slices.Clone(f.linkKeys), linkExpiry(f.linkExpire)
 	f.linkGen++
 	gen := f.linkGen
 	f.signing = true
 	go func() {
-		items, err := presign(svc, keys, d)
+		items, err := presign(linker, keys, d)
 		a.post(func() {
 			if f.linkGen != gen {
 				return
@@ -506,10 +510,10 @@ func (a *app) signLinks() {
 	}()
 }
 
-func presign(svc *s3.Service, keys []string, d time.Duration) ([]linkItem, error) {
+func presign(linker storage.Presigner, keys []string, d time.Duration) ([]linkItem, error) {
 	items := make([]linkItem, 0, len(keys))
 	for _, k := range keys {
-		u, err := svc.GetPresignedURL(context.Background(), k, d)
+		u, err := linker.GetPresignedURL(context.Background(), k, d)
 		if err != nil {
 			return nil, err
 		}
@@ -614,7 +618,7 @@ func (a *app) uploadFiles(paths []string) {
 	})
 }
 
-func uploadFile(svc *s3.Service, localPath, objectName string, onProgress func(float64)) error {
+func uploadFile(svc storage.Store, localPath, objectName string, onProgress func(float64)) error {
 	file, err := os.Open(localPath)
 	if err != nil {
 		return err
@@ -641,7 +645,7 @@ func uploadFile(svc *s3.Service, localPath, objectName string, onProgress func(f
 		}
 		onProgress(frac)
 	}}
-	return svc.UploadObjectReader(context.Background(), localPath, objectName, pr, total, mimetype.Detect(head).String())
+	return svc.UploadObjectReader(context.Background(), objectName, pr, total, mimetype.Detect(head).String())
 }
 
 func (a *app) download() {
@@ -671,7 +675,7 @@ func (a *app) download() {
 	}()
 }
 
-func downloadObject(svc *s3.Service, key, dest string) error {
+func downloadObject(svc storage.Store, key, dest string) error {
 	obj, err := svc.DownloadObject(context.Background(), key)
 	if err != nil {
 		return err

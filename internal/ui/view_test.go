@@ -5,10 +5,10 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
-	"github.com/minio/minio-go/v7"
 
 	"github.com/pteich/us3ui/config"
 	"github.com/pteich/us3ui/s3"
+	"github.com/pteich/us3ui/storage"
 )
 
 func testApp(t *testing.T) *app {
@@ -18,11 +18,12 @@ func testApp(t *testing.T) *app {
 		t.Fatal(err)
 	}
 	a := &app{cfg: &config.Config{}, svc: svc}
+	a.linker = svc
 	a.files.init()
 	a.conn.init(a.cfg)
 	now := time.Now()
 	for _, k := range []string{"logs/app.log", "logs/old/a.log", "data/report.csv", "README.md"} {
-		a.files.all = append(a.files.all, minio.ObjectInfo{Key: k, Size: 1500, LastModified: now})
+		a.files.all = append(a.files.all, storage.ObjectInfo{Key: k, Size: 1500, LastModified: now})
 		if i := len(k) - len(uploadObjectName("", k)); i > 0 {
 			a.files.tree.add(k[:i-1])
 		}

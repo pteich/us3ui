@@ -5,17 +5,17 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/minio/minio-go/v7"
+	"github.com/pteich/us3ui/storage"
 )
 
 // filterObjects returns the objects under dir ("" for all of them) whose key
 // contains term, ignoring case.
-func filterObjects(all []minio.ObjectInfo, term, dir string) []minio.ObjectInfo {
+func filterObjects(all []storage.ObjectInfo, term, dir string) []storage.ObjectInfo {
 	if term == "" && dir == "" {
 		return all
 	}
 	term = strings.ToLower(term)
-	out := make([]minio.ObjectInfo, 0, len(all)/2)
+	out := make([]storage.ObjectInfo, 0, len(all)/2)
 	for _, o := range all {
 		if dir != "" && !strings.HasPrefix(o.Key, dir+"/") {
 			continue

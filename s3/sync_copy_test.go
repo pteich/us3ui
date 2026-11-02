@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/pteich/us3ui/config"
+	"github.com/pteich/us3ui/storage"
 )
 
 func TestCopyOnePreservesSourceContentType(t *testing.T) {
@@ -45,8 +46,8 @@ func TestCopyOnePreservesSourceContentType(t *testing.T) {
 				}
 				return svc
 			}
-			a := SyncAction{SrcKey: "x", DstKey: "x", Size: int64(len(content)), ContentType: "application/octet-stream"}
-			if err := copyOne(context.Background(), service(srcServer), service(dstServer), a, nil); err != nil {
+			a := storage.SyncAction{SrcKey: "x", DstKey: "x", Size: int64(len(content)), ContentType: "application/octet-stream"}
+			if err := storage.RunSync(context.Background(), service(srcServer), service(dstServer), []storage.SyncAction{a}, 1, nil, nil); err != nil {
 				t.Fatal(err)
 			}
 			u := <-got

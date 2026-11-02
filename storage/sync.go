@@ -1,4 +1,4 @@
-package s3
+package storage
 
 import (
 	"context"
@@ -7,8 +7,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-
-	"github.com/minio/minio-go/v7"
 )
 
 const (
@@ -27,13 +25,13 @@ type SyncAction struct {
 
 // PlanSync lists both sides and returns the objects that must be copied.
 // Comparison is size-only: an object is copied when it is missing on the target
-// or its byte size differs.
-func PlanSync(ctx context.Context, src, dst *Service, srcPrefix, dstPrefix string) ([]SyncAction, error) {
-	srcObjs, err := src.listAll(ctx, srcPrefix)
+// or its byte size differs. Source and target may use different protocols.
+func PlanSync(ctx context.Context, src, dst Store, srcPrefix, dstPrefix string) ([]SyncAction, error) {
+	srcObjs, err := listAll(ctx, src, srcPrefix)
 	if err != nil {
 		return nil, fmt.Errorf("listing source: %w", err)
 	}
-	dstObjs, err := dst.listAll(ctx, dstPrefix)
+	dstObjs, err := listAll(ctx, dst, dstPrefix)
 	if err != nil {
 		return nil, fmt.Errorf("listing target: %w", err)
 	}
@@ -41,7 +39,7 @@ func PlanSync(ctx context.Context, src, dst *Service, srcPrefix, dstPrefix strin
 }
 
 // diffObjects is the pure comparison core (no network) so it can be unit tested.
-func diffObjects(src, dst []minio.ObjectInfo, srcPrefix, dstPrefix string) []SyncAction {
+func diffObjects(src, dst []ObjectInfo, srcPrefix, dstPrefix string) []SyncAction {
 	dstSize := make(map[string]int64, len(dst))
 	for _, o := range dst {
 		dstSize[o.Key] = o.Size
@@ -99,7 +97,7 @@ func normalizePrefix(p string) string {
 // object source->target without touching local disk. onProgress reports byte and
 // count progress (called frequently, throttle in the callback); onResult fires
 // once per object with its outcome. Returns ctx.Err() if cancelled.
-func RunSync(ctx context.Context, src, dst *Service, actions []SyncAction, workers int,
+func RunSync(ctx context.Context, src, dst Store, actions []SyncAction, workers int,
 	onProgress func(doneBytes, totalBytes int64, doneCount, total int, current string),
 	onResult func(a SyncAction, err error)) error {
 
@@ -149,8 +147,8 @@ func RunSync(ctx context.Context, src, dst *Service, actions []SyncAction, worke
 	return ctx.Err()
 }
 
-func copyOne(ctx context.Context, src, dst *Service, a SyncAction, onBytes func(int)) error {
-	info, err := src.client.StatObject(ctx, src.bucketName, a.SrcKey, minio.StatObjectOptions{})
+func copyOne(ctx context.Context, src, dst Store, a SyncAction, onBytes func(int)) error {
+	info, err := src.StatObject(ctx, a.SrcKey)
 	if err != nil {
 		return err
 	}
@@ -165,14 +163,14 @@ func copyOne(ctx context.Context, src, dst *Service, a SyncAction, onBytes func(
 	defer obj.Close()
 
 	reader := &countingReader{r: obj, on: onBytes}
-	return dst.UploadObjectReader(ctx, a.DstKey, a.DstKey, reader, a.Size, contentType)
+	return dst.UploadObjectReader(ctx, a.DstKey, reader, a.Size, contentType)
 }
 
-// listAll pages through every object under prefix using the existing batch lister.
-func (s *Service) listAll(ctx context.Context, prefix string) ([]minio.ObjectInfo, error) {
+// listAll pages through every object under prefix using the batch lister.
+func listAll(ctx context.Context, s Store, prefix string) ([]ObjectInfo, error) {
 	prefix = strings.TrimLeft(strings.TrimSpace(prefix), "/")
 
-	var all []minio.ObjectInfo
+	var all []ObjectInfo
 	startAfter := ""
 	for {
 		batch, err := s.ListObjectsBatch(ctx, startAfter, prefix, syncListBatchSize)

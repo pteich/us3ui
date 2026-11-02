@@ -9,7 +9,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"github.com/pteich/us3ui/config"
-	"github.com/pteich/us3ui/s3"
+	"github.com/pteich/us3ui/storage"
 )
 
 // app is the state of the one window. It is only read and written on the main
@@ -17,7 +17,11 @@ import (
 type app struct {
 	win *mygo.Window
 	cfg *config.Config
-	svc *s3.Service
+
+	// svc is the current connection; linker is nil when the connection's
+	// protocol cannot presign share links.
+	svc    storage.Store
+	linker storage.Presigner
 
 	files   filesState
 	conn    connectState

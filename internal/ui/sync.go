@@ -9,7 +9,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"github.com/pteich/us3ui/config"
-	"github.com/pteich/us3ui/s3"
+	"github.com/pteich/us3ui/storage"
 )
 
 // syncState copies objects from one saved connection to another (rclone-style
@@ -26,7 +26,7 @@ type syncState struct {
 	summary    string
 	scanning   bool
 	copying    bool
-	plan       []s3.SyncAction
+	plan       []storage.SyncAction
 	planInputs *syncInputs
 	cancel     context.CancelFunc
 	logList    ui.ListState
@@ -163,12 +163,12 @@ func (a *app) syncSelection() (src, dst config.S3Config, ok bool) {
 	return src, dst, true
 }
 
-func buildServices(srcCfg, dstCfg config.S3Config) (*s3.Service, *s3.Service, error) {
-	src, err := s3.New(srcCfg)
+func buildServices(srcCfg, dstCfg config.S3Config) (storage.Store, storage.Store, error) {
+	src, err := openStore(srcCfg)
 	if err != nil {
 		return nil, nil, fmt.Errorf("source connection: %w", err)
 	}
-	dst, err := s3.New(dstCfg)
+	dst, err := openStore(dstCfg)
 	if err != nil {
 		return nil, nil, fmt.Errorf("target connection: %w", err)
 	}
@@ -196,7 +196,7 @@ func (a *app) syncDryRun() {
 	sy.mu.Unlock()
 
 	go func() {
-		plan, err := s3.PlanSync(context.Background(), src, dst, srcPrefix, dstPrefix)
+		plan, err := storage.PlanSync(context.Background(), src, dst, srcPrefix, dstPrefix)
 		a.post(func() {
 			sy.scanning = false
 			if err != nil {
@@ -240,7 +240,7 @@ func (a *app) syncStart() {
 	sy.mu.Unlock()
 
 	go func() {
-		err := s3.RunSync(ctx, src, dst, plan, 0,
+		err := storage.RunSync(ctx, src, dst, plan, 0,
 			func(doneBytes, totalBytes int64, doneCount, total int, cur string) {
 				sy.mu.Lock()
 				if totalBytes > 0 {
@@ -252,7 +252,7 @@ func (a *app) syncStart() {
 					a.win.Invalidate()
 				}
 			},
-			func(act s3.SyncAction, resErr error) {
+			func(act storage.SyncAction, resErr error) {
 				sy.mu.Lock()
 				if resErr != nil {
 					sy.failures = append(sy.failures, fmt.Sprintf("%s: %v", act.DstKey, resErr))

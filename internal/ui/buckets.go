@@ -7,15 +7,14 @@ import (
 	"sort"
 
 	"github.com/egoist/mygo/ui"
-	"github.com/minio/minio-go/v7"
 
-	"github.com/pteich/us3ui/s3"
+	"github.com/pteich/us3ui/storage"
 )
 
 type bucketState struct {
 	open    bool
-	svc     *s3.Service
-	buckets []minio.BucketInfo
+	svc     storage.BucketManager
+	buckets []storage.BucketInfo
 	list    ui.ListState
 	row     int
 
@@ -24,7 +23,7 @@ type bucketState struct {
 	askDelete       bool
 }
 
-func (b *bucketState) reset(svc *s3.Service) {
+func (b *bucketState) reset(svc storage.BucketManager) {
 	b.svc, b.open, b.row = svc, true, -1
 	b.buckets = nil
 	b.addOpen, b.askDelete = false, false
@@ -33,12 +32,17 @@ func (b *bucketState) reset(svc *s3.Service) {
 
 // openBuckets manages the buckets of the connection in the connect form.
 func (a *app) openBuckets() {
-	svc, err := s3.New(a.conn.config())
+	store, err := openStore(a.conn.config())
 	if err != nil {
 		a.alertErr(err)
 		return
 	}
-	a.buckets.reset(svc)
+	mgr, ok := store.(storage.BucketManager)
+	if !ok {
+		a.alert("Manage Buckets", "Connections of this type have no buckets to manage.")
+		return
+	}
+	a.buckets.reset(mgr)
 	a.refreshBuckets()
 }
 
@@ -54,7 +58,7 @@ func (a *app) refreshBuckets() {
 	}()
 }
 
-func (a *app) applyBuckets(svc *s3.Service, list []minio.BucketInfo, err error) {
+func (a *app) applyBuckets(svc storage.BucketManager, list []storage.BucketInfo, err error) {
 	b := &a.buckets
 	if b.svc != svc {
 		return

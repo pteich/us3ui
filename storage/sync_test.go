@@ -1,26 +1,24 @@
-package s3
+package storage
 
 import (
 	"testing"
-
-	"github.com/minio/minio-go/v7"
 )
 
-func obj(key string, size int64) minio.ObjectInfo {
-	return minio.ObjectInfo{Key: key, Size: size}
+func obj(key string, size int64) ObjectInfo {
+	return ObjectInfo{Key: key, Size: size}
 }
 
 func TestDiffObjects(t *testing.T) {
 	tests := []struct {
 		name               string
-		src, dst           []minio.ObjectInfo
+		src, dst           []ObjectInfo
 		srcPrefix, dstPref string
 		want               []SyncAction // SrcKey/DstKey/Reason checked
 	}{
 		{
 			name: "missing and size-differs copied, identical skipped",
-			src:  []minio.ObjectInfo{obj("a.txt", 10), obj("b.txt", 20), obj("c.txt", 30)},
-			dst:  []minio.ObjectInfo{obj("b.txt", 99), obj("c.txt", 30)},
+			src:  []ObjectInfo{obj("a.txt", 10), obj("b.txt", 20), obj("c.txt", 30)},
+			dst:  []ObjectInfo{obj("b.txt", 99), obj("c.txt", 30)},
 			want: []SyncAction{
 				{SrcKey: "a.txt", DstKey: "a.txt", Reason: "missing"},
 				{SrcKey: "b.txt", DstKey: "b.txt", Reason: "size differs"},
@@ -28,7 +26,7 @@ func TestDiffObjects(t *testing.T) {
 		},
 		{
 			name:      "prefix stripped from source and applied to target",
-			src:       []minio.ObjectInfo{obj("logs/2024/x.log", 5)},
+			src:       []ObjectInfo{obj("logs/2024/x.log", 5)},
 			dst:       nil,
 			srcPrefix: "logs/2024",
 			dstPref:   "backup",
@@ -38,7 +36,7 @@ func TestDiffObjects(t *testing.T) {
 		},
 		{
 			name:      "trailing slashes on prefixes are normalized",
-			src:       []minio.ObjectInfo{obj("src/x.log", 5)},
+			src:       []ObjectInfo{obj("src/x.log", 5)},
 			dst:       nil,
 			srcPrefix: "src/",
 			dstPref:   "/dst/",
@@ -48,7 +46,7 @@ func TestDiffObjects(t *testing.T) {
 		},
 		{
 			name:      "empty target prefix keeps relative key at root",
-			src:       []minio.ObjectInfo{obj("src/x.log", 5)},
+			src:       []ObjectInfo{obj("src/x.log", 5)},
 			dst:       nil,
 			srcPrefix: "src",
 			dstPref:   "",
@@ -58,7 +56,7 @@ func TestDiffObjects(t *testing.T) {
 		},
 		{
 			name: "prefix placeholder object itself is skipped",
-			src:  []minio.ObjectInfo{obj("src/", 0), obj("src/x.log", 5)},
+			src:  []ObjectInfo{obj("src/", 0), obj("src/x.log", 5)},
 			dst:  nil, srcPrefix: "src",
 			want: []SyncAction{
 				{SrcKey: "src/x.log", DstKey: "x.log", Reason: "missing"},
