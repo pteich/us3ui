@@ -9,6 +9,7 @@ import (
 
 	"github.com/pteich/us3ui/config"
 	"github.com/pteich/us3ui/connections"
+	"github.com/pteich/us3ui/ftp"
 	"github.com/pteich/us3ui/s3"
 	"github.com/pteich/us3ui/sftp"
 	"github.com/pteich/us3ui/storage"
@@ -18,6 +19,7 @@ import (
 var connTypes = []struct{ label, value string }{
 	{"S3", config.TypeS3},
 	{"SFTP", config.TypeSFTP},
+	{"FTP", config.TypeFTP},
 }
 
 func connTypeLabels() []string {
@@ -54,6 +56,8 @@ func openStore(cfg config.S3Config) (storage.Store, error) {
 		return s3.New(cfg)
 	case config.TypeSFTP:
 		return sftp.New(cfg)
+	case config.TypeFTP:
+		return ftp.New(cfg)
 	default:
 		return nil, fmt.Errorf("unsupported connection type %q", cfg.ConnType())
 	}
@@ -181,6 +185,8 @@ func (a *app) connectModal(c *ui.Context) {
 					})
 					if cs.connType == config.TypeSFTP {
 						a.sftpFields(c)
+					} else if cs.connType == config.TypeFTP {
+						a.ftpFields(c)
 					} else {
 						a.s3Fields(c)
 					}
@@ -277,6 +283,21 @@ func (a *app) pickKeyFile() {
 		}
 		a.post(func() { a.conn.keyPath = paths[0] })
 	}()
+}
+
+// ftpFields are the connection form fields of an FTP connection; they map
+// onto the same config fields with protocol-appropriate labels.
+func (a *app) ftpFields(c *ui.Context) {
+	cs := &a.conn
+	ui.Field(c, "Host", func() {
+		ui.TextInput(c.Key("endpoint"), &cs.endpoint).Placeholder("host with optional port")
+	})
+	ui.Field(c, "Username", func() { ui.TextInput(c.Key("access"), &cs.access) })
+	ui.Field(c, "Password", func() { ui.TextInput(c.Key("secret"), &cs.secret).Password() })
+	ui.Field(c, "Start Directory", func() {
+		ui.TextInput(c.Key("prefix"), &cs.prefix).Placeholder("optional, defaults to the login directory")
+	})
+	ui.Field(c, "", func() { ui.Checkbox(c, &cs.ssl, "Use TLS (FTPS)") })
 }
 
 func (a *app) saveConnection() {

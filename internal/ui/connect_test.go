@@ -38,6 +38,24 @@ func TestConnectFormDefaultsToS3(t *testing.T) {
 	}
 }
 
+func TestConnectFormFTPFields(t *testing.T) {
+	a := testApp(t)
+	a.conn.open = true
+	a.conn.fill(config.S3Config{Type: config.TypeFTP, Name: "web", Endpoint: "example.com", AccessKey: "ftpuser"})
+	tt := ui.NewTester(a.view, 1000, 600)
+
+	for _, want := range []string{"Host", "Username", "Password", "Start Directory", "Use TLS (FTPS)"} {
+		if !tt.HasText(want) {
+			t.Errorf("missing %q in %q", want, tt.Texts())
+		}
+	}
+	for _, hidden := range []string{"Manage Buckets", "Region", "Key File", "Key Passphrase"} {
+		if tt.HasText(hidden) {
+			t.Errorf("%q should be hidden for FTP connections: %q", hidden, tt.Texts())
+		}
+	}
+}
+
 func TestFilesViewHidesLinkWithoutPresigner(t *testing.T) {
 	a := testApp(t)
 	a.linker = nil

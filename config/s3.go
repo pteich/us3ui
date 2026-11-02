@@ -11,6 +11,7 @@ const Transient = "<Transient>"
 const (
 	TypeS3   = "s3"
 	TypeSFTP = "sftp"
+	TypeFTP  = "ftp"
 )
 
 type S3Config struct {
@@ -27,7 +28,9 @@ type S3Config struct {
 	// SFTP connections reuse the S3-shaped fields: Endpoint is the host with
 	// an optional port (22 by default), AccessKey the username, SecretKey the
 	// password and Prefix the start directory. KeyPath points at a private
-	// key file that replaces the password, KeyPassphrase decrypts it.
+	// key file that replaces the password, KeyPassphrase decrypts it. FTP
+	// connections map the same way (port 21 by default, UseSSL upgrades to
+	// FTPS); they have no key fields.
 	KeyPath       string `json:"keyPath,omitempty" cli:"keypath" env:"KEY_PATH"`
 	KeyPassphrase string `json:"keyPassphrase,omitempty" cli:"keypass" env:"KEY_PASSPHRASE"`
 }

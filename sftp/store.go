@@ -6,8 +6,6 @@ import (
 	"io"
 	"os"
 	"path"
-	"slices"
-	"sort"
 	"strings"
 
 	"github.com/pteich/us3ui/storage"
@@ -24,32 +22,14 @@ func (s *Service) path(key string) string {
 // (startAfter != "") serve from that cached walk. A missing prefix lists
 // nothing, like S3 does.
 func (s *Service) ListObjectsBatch(ctx context.Context, startAfter, prefix string, batchSize int) ([]storage.ObjectInfo, error) {
-	s.walkMu.Lock()
-	defer s.walkMu.Unlock()
-
-	if startAfter == "" || s.walkPrefix != prefix || s.walkObjects == nil {
-		objects, err := s.walk(ctx, prefix)
-		if err != nil {
-			return nil, err
-		}
-		s.walkPrefix, s.walkObjects = prefix, objects
-	}
-
-	all := s.walkObjects
-	start := 0
-	if startAfter != "" {
-		start = sort.Search(len(all), func(i int) bool { return all[i].Key > startAfter })
-	}
-	if start >= len(all) {
-		return nil, nil
-	}
-	end := min(start+batchSize, len(all))
-	return all[start:end], nil
+	return s.lister.Page(startAfter, prefix, batchSize, func() ([]storage.ObjectInfo, error) {
+		return s.walk(ctx, prefix)
+	})
 }
 
-// walk lists every file under the prefix directory, sorted by key. The
-// prefix must be a directory path; partial name prefixes (S3-style "log"
-// matching "logs/...") are not supported.
+// walk lists every file under the prefix directory. The prefix must be a
+// directory path; partial name prefixes (S3-style "log" matching "logs/...")
+// are not supported.
 func (s *Service) walk(ctx context.Context, prefix string) ([]storage.ObjectInfo, error) {
 	c, err := s.conn()
 	if err != nil {
@@ -64,7 +44,6 @@ func (s *Service) walk(ctx context.Context, prefix string) ([]storage.ObjectInfo
 	if err := walkDir(ctx, c, dir, rel, &out); err != nil {
 		return nil, err
 	}
-	slices.SortFunc(out, func(a, b storage.ObjectInfo) int { return strings.Compare(a.Key, b.Key) })
 	return out, nil
 }
 
@@ -105,9 +84,7 @@ func walkDir(ctx context.Context, c sftpConn, dir, rel string, out *[]storage.Ob
 
 // invalidateWalk drops the cached listing after a mutation.
 func (s *Service) invalidateWalk() {
-	s.walkMu.Lock()
-	s.walkObjects = nil
-	s.walkMu.Unlock()
+	s.lister.Invalidate()
 }
 
 func (s *Service) StatObject(ctx context.Context, key string) (storage.ObjectInfo, error) {

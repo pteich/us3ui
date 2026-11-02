@@ -60,9 +60,7 @@ type Service struct {
 	client sftpConn
 	root   string // absolute directory all keys are relative to
 
-	walkMu      sync.Mutex // guards the cached listing
-	walkPrefix  string
-	walkObjects []storage.ObjectInfo
+	lister storage.WalkLister // cached tree walk backing ListObjectsBatch
 
 	closed     bool
 	stopKeepal chan struct{}
