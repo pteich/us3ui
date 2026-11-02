@@ -58,6 +58,7 @@ func (m *Manager) Remove(index int) {
 	name := m.connections[index].Name
 	if name != "" && name != config.Transient {
 		_ = config.DeleteSecret(name)
+		_ = config.DeleteKeyPassphrase(name)
 	}
 	m.connections = append(m.connections[:index], m.connections[index+1:]...)
 }

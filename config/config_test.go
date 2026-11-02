@@ -148,6 +148,65 @@ func TestLoadSecretsPopulatesFromKeychain(t *testing.T) {
 	}
 }
 
+func TestSaveMovesKeyPassphraseToKeychain(t *testing.T) {
+	keyring.MockInit()
+
+	settingsPath := filepath.Join(t.TempDir(), "settings.json")
+	c := &Config{
+		filepath: settingsPath,
+		Settings: Settings{
+			Connections: []S3Config{
+				{Name: "sftp1", KeyPassphrase: "lock123", Endpoint: "e"},
+			},
+		},
+	}
+
+	if err := c.Save(); err != nil {
+		t.Fatalf("Save() returned error: %v", err)
+	}
+
+	raw, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatalf("failed to read saved file: %v", err)
+	}
+	if strings.Contains(string(raw), "lock123") {
+		t.Errorf("saved file still contains plaintext key passphrase")
+	}
+
+	got, err := keyring.Get("us3ui", KeyPassphraseSlot("sftp1"))
+	if err != nil {
+		t.Fatalf("keyring.Get returned error: %v", err)
+	}
+	if got != "lock123" {
+		t.Errorf("keyring passphrase = %q, want %q", got, "lock123")
+	}
+	if c.Settings.Connections[0].KeyPassphrase != "lock123" {
+		t.Errorf("in-memory KeyPassphrase = %q, want %q", c.Settings.Connections[0].KeyPassphrase, "lock123")
+	}
+}
+
+func TestLoadSecretsPopulatesKeyPassphrase(t *testing.T) {
+	keyring.MockInit()
+
+	if err := keyring.Set("us3ui", KeyPassphraseSlot("c3"), "ringpass"); err != nil {
+		t.Fatalf("keyring.Set returned error: %v", err)
+	}
+
+	c := &Config{
+		Settings: Settings{
+			Connections: []S3Config{
+				{Name: "c3", Endpoint: "e"},
+			},
+		},
+	}
+
+	c.loadSecrets()
+
+	if c.Settings.Connections[0].KeyPassphrase != "ringpass" {
+		t.Errorf("KeyPassphrase = %q, want %q", c.Settings.Connections[0].KeyPassphrase, "ringpass")
+	}
+}
+
 func TestSavePermissions(t *testing.T) {
 	c := &Config{
 		filepath: filepath.Join(t.TempDir(), "settings.json"),

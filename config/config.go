@@ -63,11 +63,12 @@ func New() (*Config, error) {
 	return cfg, nil
 }
 
-// loadSecrets reconciles connection secret keys with the OS keychain.
-// For each saved connection: a non-empty (legacy plaintext) SecretKey is pushed
+// loadSecrets reconciles connection secrets with the OS keychain.
+// For each saved connection: a non-empty (legacy plaintext) secret is pushed
 // to the keychain and reported via the return value so the caller can rewrite
-// the file without it; an empty SecretKey is filled from the keychain when
-// present. Best effort: keychain failures leave the in-memory value as-is so the
+// the file without it; an empty secret is filled from the keychain when
+// present. The same applies to the SFTP key passphrase under its own slot.
+// Best effort: keychain failures leave the in-memory value as-is so the
 // app still works without a keychain backend.
 func (c *Config) loadSecrets() (migrated bool) {
 	for i := range c.Settings.Connections {
@@ -79,10 +80,15 @@ func (c *Config) loadSecrets() (migrated bool) {
 			if err := secretSet(conn.Name, conn.SecretKey); err == nil {
 				migrated = true
 			}
-			continue
-		}
-		if s, err := secretGet(conn.Name); err == nil {
+		} else if s, err := secretGet(conn.Name); err == nil {
 			conn.SecretKey = s
+		}
+		if conn.KeyPassphrase != "" {
+			if err := secretSet(KeyPassphraseSlot(conn.Name), conn.KeyPassphrase); err == nil {
+				migrated = true
+			}
+		} else if s, err := secretGet(KeyPassphraseSlot(conn.Name)); err == nil {
+			conn.KeyPassphrase = s
 		}
 	}
 	return migrated
@@ -116,11 +122,19 @@ func (c *Config) Save() error {
 	serialized := make([]S3Config, len(connections))
 	copy(serialized, connections)
 	for i := range serialized {
-		if serialized[i].SecretKey == "" || serialized[i].Name == "" {
+		if serialized[i].Name == "" {
 			continue
 		}
-		if err := secretSet(serialized[i].Name, serialized[i].SecretKey); err == nil {
-			serialized[i].SecretKey = ""
+		name := serialized[i].Name
+		if serialized[i].SecretKey != "" {
+			if err := secretSet(name, serialized[i].SecretKey); err == nil {
+				serialized[i].SecretKey = ""
+			}
+		}
+		if serialized[i].KeyPassphrase != "" {
+			if err := secretSet(KeyPassphraseSlot(name), serialized[i].KeyPassphrase); err == nil {
+				serialized[i].KeyPassphrase = ""
+			}
 		}
 	}
 

@@ -25,3 +25,8 @@ func secretDelete(name string) error {
 func DeleteSecret(name string) error {
 	return secretDelete(name)
 }
+
+// DeleteKeyPassphrase removes a connection's key passphrase from the OS keychain.
+func DeleteKeyPassphrase(name string) error {
+	return secretDelete(KeyPassphraseSlot(name))
+}

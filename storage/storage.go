@@ -43,6 +43,8 @@ func CapsFor(connType string) Capabilities {
 	switch connType {
 	case config.TypeS3:
 		return Capabilities{Presign: true, Buckets: true}
+	case config.TypeSFTP:
+		return Capabilities{} // plain filesystem semantics: no links, no buckets
 	default:
 		return Capabilities{}
 	}
