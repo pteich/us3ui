@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -73,6 +74,7 @@ type connectState struct {
 	connType, typeLabel                                    string // s3 or sftp; typeLabel is the select's value
 	name, endpoint, access, secret, bucket, prefix, region string
 	keyPath, keyPass                                       string
+	proxyHost, proxyUser, proxyPass                        string
 	ssl                                                    bool
 
 	copyOpen bool
@@ -91,6 +93,7 @@ func (cs *connectState) config() config.S3Config {
 		Type: cs.connType, Name: cs.name, Endpoint: cs.endpoint, AccessKey: cs.access, SecretKey: cs.secret,
 		Bucket: cs.bucket, Prefix: cs.prefix, Region: cs.region, UseSSL: cs.ssl,
 		KeyPath: cs.keyPath, KeyPassphrase: cs.keyPass,
+		ProxyHost: cs.proxyHost, ProxyUser: cs.proxyUser, ProxyPassword: cs.proxyPass,
 	}
 }
 
@@ -100,6 +103,7 @@ func (cs *connectState) fill(s config.S3Config) {
 	cs.name, cs.endpoint, cs.access, cs.secret = s.Name, s.Endpoint, s.AccessKey, s.SecretKey
 	cs.bucket, cs.prefix, cs.region, cs.ssl = s.Bucket, s.Prefix, s.Region, s.UseSSL
 	cs.keyPath, cs.keyPass = s.KeyPath, s.KeyPassphrase
+	cs.proxyHost, cs.proxyUser, cs.proxyPass = s.ProxyHost, s.ProxyUser, s.ProxyPassword
 }
 
 // clear starts a new, unsaved connection.
@@ -191,7 +195,14 @@ func (a *app) connectModal(c *ui.Context) {
 						a.s3Fields(c)
 					}
 					ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-						if ui.Button(c, "Save Connection").Disabled(cs.name == "").Clicked() {
+						if cs.renaming() {
+							if ui.Button(c, "Rename Connection").Clicked() {
+								a.renameConnection()
+							}
+							if ui.Button(c, "Save as New").Clicked() {
+								a.saveConnection()
+							}
+						} else if ui.Button(c, "Save Connection").Disabled(cs.name == "").Clicked() {
 							a.saveConnection()
 						}
 						if ui.Button(c, "Cancel").Clicked() {
@@ -298,11 +309,36 @@ func (a *app) ftpFields(c *ui.Context) {
 		ui.TextInput(c.Key("prefix"), &cs.prefix).Placeholder("optional, defaults to the login directory")
 	})
 	ui.Field(c, "", func() { ui.Checkbox(c, &cs.ssl, "Use TLS (FTPS)") })
+	ui.Field(c, "SOCKS5 Proxy", func() {
+		ui.TextInput(c.Key("proxyhost"), &cs.proxyHost).Placeholder("optional host:port")
+	})
+	if strings.TrimSpace(cs.proxyHost) != "" {
+		ui.Field(c, "Proxy Username", func() { ui.TextInput(c.Key("proxyuser"), &cs.proxyUser).Placeholder("optional") })
+		ui.Field(c, "Proxy Password", func() { ui.TextInput(c.Key("proxypass"), &cs.proxyPass).Password() })
+	}
+}
+
+// renaming reports whether the name of the selected, saved connection was
+// edited: saving then either renames it or stores a new connection.
+func (cs *connectState) renaming() bool {
+	return cs.name != "" && cs.row >= 0 && cs.row < cs.mgr.Count() && cs.mgr.Get(cs.row).Name != cs.name
 }
 
 func (a *app) saveConnection() {
 	cs := &a.conn
 	cs.mgr.Add(cs.config())
+	cs.row = cs.mgr.Index(cs.name) // select the saved entry, new or not
+	if err := cs.mgr.Save(); err != nil {
+		a.alertErr(err)
+	}
+}
+
+func (a *app) renameConnection() {
+	cs := &a.conn
+	if err := cs.mgr.Rename(cs.row, cs.config()); err != nil {
+		a.alertErr(err)
+		return
+	}
 	if err := cs.mgr.Save(); err != nil {
 		a.alertErr(err)
 	}

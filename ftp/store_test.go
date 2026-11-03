@@ -3,8 +3,10 @@ package ftp
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"io"
+	"net"
 	"net/textproto"
 	"path"
 	"strings"
@@ -462,4 +464,42 @@ func equal(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+func TestEntryFromList(t *testing.T) {
+	f := newFakeFS()
+	f.addFile("/logs/a.txt", []byte("abc"))
+	c := &fakeConn{fs: f}
+
+	if e, err := entryFromList(c, "/"); err != nil || e.Type != ftpclient.EntryTypeFolder {
+		t.Fatalf("root: %v %v", e, err)
+	}
+	if e, err := entryFromList(c, "/logs"); err != nil || e.Type != ftpclient.EntryTypeFolder {
+		t.Fatalf("dir: %v %v", e, err)
+	}
+	if e, err := entryFromList(c, "/logs/a.txt"); err != nil || e.Size != 3 {
+		t.Fatalf("file: %v %v", e, err)
+	}
+	if _, err := entryFromList(c, "/logs/missing"); !notFound(err) {
+		t.Fatalf("missing: want not found, got %v", err)
+	}
+}
+
+type pipeDialer struct{}
+
+func (pipeDialer) Dial(network, addr string) (net.Conn, error) { c, _ := net.Pipe(); return c, nil }
+
+func TestProxyDialFuncWrapsDataConnsInTLS(t *testing.T) {
+	dial := proxyDialFunc(pipeDialer{}, true, &tls.Config{})
+	ctrl, _ := dial("tcp", "a:21")
+	data, _ := dial("tcp", "a:2000")
+	if _, ok := ctrl.(*tls.Conn); ok {
+		t.Fatal("control connection must stay plain until AUTH TLS")
+	}
+	if _, ok := data.(*tls.Conn); !ok {
+		t.Fatal("data connection must be TLS with FTPS")
+	}
+	if c, _ := proxyDialFunc(pipeDialer{}, false, nil)("tcp", "a:2000"); c == nil {
+		t.Fatal("plain dial failed")
+	}
 }

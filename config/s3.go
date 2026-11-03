@@ -33,6 +33,34 @@ type S3Config struct {
 	// FTPS); they have no key fields.
 	KeyPath       string `json:"keyPath,omitempty" cli:"keypath" env:"KEY_PATH"`
 	KeyPassphrase string `json:"keyPassphrase,omitempty" cli:"keypass" env:"KEY_PASSPHRASE"`
+
+	// FTP connections can tunnel through a SOCKS5 proxy: ProxyHost is
+	// host:port, empty means a direct connection. ProxyUser/ProxyPassword
+	// authenticate against the proxy when set.
+	ProxyHost     string `json:"proxyHost,omitempty" cli:"proxyhost" env:"PROXY_HOST"`
+	ProxyUser     string `json:"proxyUser,omitempty" cli:"proxyuser" env:"PROXY_USER"`
+	ProxyPassword string `json:"proxyPassword,omitempty" cli:"proxypass" env:"PROXY_PASSWORD"`
+}
+
+// ProxyPasswordSlot is the keychain user under which a connection's SOCKS
+// proxy password is stored.
+func ProxyPasswordSlot(name string) string {
+	return name + " proxy password"
+}
+
+// secrets are a connection's keychain-backed fields with their slots.
+func (c *S3Config) secrets() []struct {
+	slot  string
+	value *string
+} {
+	return []struct {
+		slot  string
+		value *string
+	}{
+		{c.Name, &c.SecretKey},
+		{KeyPassphraseSlot(c.Name), &c.KeyPassphrase},
+		{ProxyPasswordSlot(c.Name), &c.ProxyPassword},
+	}
 }
 
 // KeyPassphraseSlot is the keychain user under which a connection's private

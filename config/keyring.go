@@ -30,3 +30,8 @@ func DeleteSecret(name string) error {
 func DeleteKeyPassphrase(name string) error {
 	return secretDelete(KeyPassphraseSlot(name))
 }
+
+// DeleteProxyPassword removes a connection's proxy password from the OS keychain.
+func DeleteProxyPassword(name string) error {
+	return secretDelete(ProxyPasswordSlot(name))
+}

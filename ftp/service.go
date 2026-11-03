@@ -9,12 +9,14 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/textproto"
 	"path"
 	"strings"
 	"sync"
 	"time"
 
 	ftpclient "github.com/jlaffaye/ftp"
+	"golang.org/x/net/proxy"
 
 	"github.com/pteich/us3ui/config"
 	"github.com/pteich/us3ui/storage"
@@ -40,10 +42,40 @@ type ftpConn interface {
 	Quit() error
 }
 
-// serverConn adapts *ftp.ServerConn to ftpConn; only Retr differs.
+// serverConn adapts *ftp.ServerConn to ftpConn; Retr and GetEntry differ.
 type serverConn struct{ *ftpclient.ServerConn }
 
 func (c serverConn) Retr(p string) (io.ReadCloser, error) { return c.ServerConn.Retr(p) }
+
+// GetEntry uses MLST and falls back to listing the parent directory on
+// servers without MLST (e.g. goftp.io/server answers 502).
+func (c serverConn) GetEntry(p string) (*ftpclient.Entry, error) {
+	e, err := c.ServerConn.GetEntry(p)
+	var proto *textproto.Error
+	if errors.As(err, &proto) && (proto.Code == ftpclient.StatusBadCommand || proto.Code == ftpclient.StatusNotImplemented) {
+		return entryFromList(c, p)
+	}
+	return e, err
+}
+
+// entryFromList finds p in a LIST of its parent directory. The root has no
+// parent to list it in and is always a folder.
+func entryFromList(c ftpConn, p string) (*ftpclient.Entry, error) {
+	p = path.Clean("/" + strings.TrimPrefix(p, "/"))
+	if p == "/" {
+		return &ftpclient.Entry{Name: "/", Type: ftpclient.EntryTypeFolder}, nil
+	}
+	entries, err := c.List(path.Dir(p))
+	if err != nil {
+		return nil, err
+	}
+	for _, e := range entries {
+		if e.Name == path.Base(p) {
+			return e, nil
+		}
+	}
+	return nil, &textproto.Error{Code: ftpclient.StatusFileUnavailable, Msg: p + ": no such file or directory"}
+}
 
 var _ storage.Store = (*Service)(nil)
 
@@ -82,7 +114,19 @@ func New(cfg config.S3Config) (*Service, error) {
 	host, port := splitHostPort(cfg.Endpoint)
 	addr := net.JoinHostPort(host, port)
 	s := &Service{cfg: cfg, idle: map[ftpConn]time.Time{}}
-	s.dial = func() (ftpConn, error) { return dialConn(addr, host, cfg.UseSSL, user, pass) }
+	var socks proxy.Dialer
+	if ph := strings.TrimSpace(cfg.ProxyHost); ph != "" {
+		var auth *proxy.Auth
+		if cfg.ProxyUser != "" || cfg.ProxyPassword != "" {
+			auth = &proxy.Auth{User: cfg.ProxyUser, Password: cfg.ProxyPassword}
+		}
+		d, err := proxy.SOCKS5("tcp", ph, auth, &net.Dialer{Timeout: dialTimeout})
+		if err != nil {
+			return nil, fmt.Errorf("socks proxy: %w", err)
+		}
+		socks = d
+	}
+	s.dial = func() (ftpConn, error) { return dialConn(addr, host, cfg.UseSSL, user, pass, socks) }
 
 	if err := s.withConn(context.Background(), func(c ftpConn) error {
 		p := strings.TrimSpace(cfg.Prefix)
@@ -108,14 +152,16 @@ func New(cfg config.S3Config) (*Service, error) {
 	return s, nil
 }
 
-// dialConn opens and logs into one FTP(S) connection.
-func dialConn(addr, host string, useTLS bool, user, pass string) (ftpConn, error) {
+// dialConn opens and logs into one FTP(S) connection, through the SOCKS
+// proxy when socks is non-nil.
+func dialConn(addr, host string, useTLS bool, user, pass string, socks proxy.Dialer) (ftpConn, error) {
 	opts := []ftpclient.DialOption{ftpclient.DialWithTimeout(dialTimeout)}
+	tlsCfg := &tls.Config{ServerName: host, MinVersion: tls.VersionTLS12}
 	if useTLS {
-		opts = append(opts, ftpclient.DialWithExplicitTLS(&tls.Config{
-			ServerName: host,
-			MinVersion: tls.VersionTLS12,
-		}))
+		opts = append(opts, ftpclient.DialWithExplicitTLS(tlsCfg))
+	}
+	if socks != nil {
+		opts = append(opts, ftpclient.DialWithDialFunc(proxyDialFunc(socks, useTLS, tlsCfg)))
 	}
 	conn, err := ftpclient.Dial(addr, opts...)
 	if err != nil {
@@ -126,6 +172,25 @@ func dialConn(addr, host string, useTLS bool, user, pass string) (ftpConn, error
 		return nil, fmt.Errorf("login failed: %w", err)
 	}
 	return serverConn{conn}, nil
+}
+
+// proxyDialFunc dials control and data connections through the proxy. With
+// a custom dial func the ftp library leaves data connections unencrypted, so
+// with FTPS every dial after the first (the control connection, which the
+// library upgrades itself via AUTH TLS) is wrapped in TLS here.
+func proxyDialFunc(socks proxy.Dialer, useTLS bool, tlsCfg *tls.Config) func(network, address string) (net.Conn, error) {
+	control := true
+	return func(network, address string) (net.Conn, error) {
+		conn, err := socks.Dial(network, address)
+		if err != nil {
+			return nil, err
+		}
+		if useTLS && !control {
+			return tls.Client(conn, tlsCfg), nil
+		}
+		control = false
+		return conn, nil
+	}
 }
 
 // splitHostPort splits "host[:port]", defaulting to the FTP port 21.

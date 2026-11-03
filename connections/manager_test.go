@@ -3,6 +3,8 @@ package connections
 import (
 	"testing"
 
+	"github.com/zalando/go-keyring"
+
 	"github.com/pteich/us3ui/config"
 )
 
@@ -76,5 +78,20 @@ func TestManagerRemoveOutOfRange(t *testing.T) {
 
 	if m.Count() != 2 {
 		t.Errorf("Count() = %d after out-of-range Remove, want 2", m.Count())
+	}
+}
+
+func TestManagerRename(t *testing.T) {
+	keyring.MockInit() // Rename deletes the old name's keychain entries
+	m := makeManager([]config.S3Config{{Name: "a", Endpoint: "e1"}, {Name: "b"}})
+
+	if err := m.Rename(0, config.S3Config{Name: "b"}); err == nil {
+		t.Fatal("renaming onto an existing name must fail")
+	}
+	if err := m.Rename(0, config.S3Config{Name: "c", Endpoint: "e1"}); err != nil {
+		t.Fatal(err)
+	}
+	if m.Count() != 2 || m.Get(0).Name != "c" || m.Index("a") != -1 {
+		t.Fatalf("got %+v", m.connections)
 	}
 }

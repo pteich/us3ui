@@ -67,7 +67,8 @@ func New() (*Config, error) {
 // For each saved connection: a non-empty (legacy plaintext) secret is pushed
 // to the keychain and reported via the return value so the caller can rewrite
 // the file without it; an empty secret is filled from the keychain when
-// present. The same applies to the SFTP key passphrase under its own slot.
+// present. The same applies to the SFTP key passphrase and the proxy
+// password under their own slots.
 // Best effort: keychain failures leave the in-memory value as-is so the
 // app still works without a keychain backend.
 func (c *Config) loadSecrets() (migrated bool) {
@@ -76,19 +77,14 @@ func (c *Config) loadSecrets() (migrated bool) {
 		if conn.Name == "" || conn.Name == Transient {
 			continue
 		}
-		if conn.SecretKey != "" {
-			if err := secretSet(conn.Name, conn.SecretKey); err == nil {
-				migrated = true
+		for _, sec := range conn.secrets() {
+			if *sec.value != "" {
+				if err := secretSet(sec.slot, *sec.value); err == nil {
+					migrated = true
+				}
+			} else if v, err := secretGet(sec.slot); err == nil {
+				*sec.value = v
 			}
-		} else if s, err := secretGet(conn.Name); err == nil {
-			conn.SecretKey = s
-		}
-		if conn.KeyPassphrase != "" {
-			if err := secretSet(KeyPassphraseSlot(conn.Name), conn.KeyPassphrase); err == nil {
-				migrated = true
-			}
-		} else if s, err := secretGet(KeyPassphraseSlot(conn.Name)); err == nil {
-			conn.KeyPassphrase = s
 		}
 	}
 	return migrated
@@ -125,15 +121,11 @@ func (c *Config) Save() error {
 		if serialized[i].Name == "" {
 			continue
 		}
-		name := serialized[i].Name
-		if serialized[i].SecretKey != "" {
-			if err := secretSet(name, serialized[i].SecretKey); err == nil {
-				serialized[i].SecretKey = ""
-			}
-		}
-		if serialized[i].KeyPassphrase != "" {
-			if err := secretSet(KeyPassphraseSlot(name), serialized[i].KeyPassphrase); err == nil {
-				serialized[i].KeyPassphrase = ""
+		for _, sec := range serialized[i].secrets() {
+			if *sec.value != "" {
+				if err := secretSet(sec.slot, *sec.value); err == nil {
+					*sec.value = ""
+				}
 			}
 		}
 	}
