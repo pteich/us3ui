@@ -2,31 +2,35 @@
 # Universal S3 UI (us3ui) 
 <img src="website/Icon.svg" alt="Icon" height="50px" width="50px" />
 
-Universal S3 UI is a lightweight, cross-platform graphical user interface for managing S3-compatible object storage services, with a particular focus on non-AWS implementations.
+Universal S3 UI is a lightweight, cross-platform storage browser. It started as a GUI for S3-compatible object storage (with a particular focus on non-AWS implementations) and now speaks **S3, SFTP and FTP/FTPS** through the same interface: one connection manager, one file list, and sync between any two connections.
 Built with Go and [MyGo](https://github.com/egoist/mygo) (native, GPU-drawn UI, no cgo), this application provides a seamless experience across macOS, Windows, and Linux and is provided as a native app.
 [https://us3ui.pteich.de](https://us3ui.pteich.de)
 
 ## Features
 
-- **Universal Compatibility**: Works with any S3-compatible storage service (Minio, Ceph, etc.)
-- **Connection Manager**: Save and manage multiple S3 service configurations
-- **Secure Credential Storage**: Secret keys are kept in your operating system's keychain (macOS Keychain, Windows Credential Manager, Linux Secret Service) instead of plaintext on disk
-- **Drag-and-Drop Support**: Drag multiple files from your local machine to upload to your bucket
-- **Secure Connections**: Support for both HTTP and HTTPS connections
+- **Multiple Protocols**:
+  - **S3**: any S3-compatible storage service (MinIO, Ceph, AWS, Hetzner, OVH, Scaleway, etc.)
+  - **SFTP**: password or private key (with passphrase) login; host keys are trusted on first use and checked on every later connection
+  - **FTP/FTPS**: plain FTP or explicit TLS, anonymous login, optional SOCKS5 proxy with authentication
+- **Connection Manager**: Save, copy and rename connections of any protocol
+- **Secure Credential Storage**: Passwords, secret keys, key passphrases and proxy passwords are kept in your operating system's keychain (macOS Keychain, Windows Credential Manager, Linux Secret Service) instead of plaintext on disk
+- **Drag-and-Drop Support**: Drag multiple files from your local machine to upload them
+- **Secure Connections**: HTTPS for S3, SSH for SFTP, TLS for FTPS
 - **File Management**:
-  - Browse objects in your bucket with size information
-  - Upload local files to your bucket
-  - Download selected files from your bucket to your local machine
-  - Delete objects
-  - Select files and generate temporary download links, valid from 15 minutes up to 7 days
-  - Refresh bucket contents
+  - Browse files and objects with size information
+  - Upload local files
+  - Download selected files to your local machine
+  - Delete files and objects
+  - Select files and generate temporary download links, valid from 15 minutes up to 7 days (S3 only)
+  - Create and remove buckets (S3 only)
+  - Refresh the listing
 - **Asynchronous Loading**: Load objects without blocking the UI
 - **Search Functionality**: Easily find objects with simple fulltext search
 - **Progress Tracking**: Visual progress bar for long-running operations
 - **Pagination**: Load objects in batches for improved performance
 - **Detailed Object Information**: View object name, size, and last modified date
 - **Responsive UI**: Sortable, resizable columns for better visibility of object details
-- **Sync**: Copy objects between two saved connections without touching local disk
+- **Sync**: Copy files between any two saved connections (e.g. FTP to S3) without touching local disk
 - **Auto-updates**: Installed apps update themselves from signed GitHub releases
 
 ## ❤️ Sponsoring
@@ -74,7 +78,7 @@ The pre-built binaries are currently not code-signed. macOS Gatekeeper and Windo
 
 ### Prerequisites
 
-- Any S3-compatible storage service credentials
+- Credentials for an S3-compatible storage service, an SFTP server or an FTP server
 - For building from source: Go (no C toolchain needed)
 
 ### Building from source
@@ -90,7 +94,9 @@ make test
 
 When you start the application, you can use the GUI to manage your connections:
 
-1. Create a new connection by providing:
+1. Create a new connection, choose its **Type** (S3, SFTP or FTP) and provide:
+
+   For **S3**:
 
    - **Name**: A unique name for your connection
    - **Endpoint**: Your S3 service endpoint (e.g., "play.min.io")
@@ -101,11 +107,28 @@ When you start the application, you can use the GUI to manage your connections:
    - **Region**: (Optional) The region of your S3 service
    - **SSL**: Toggle for HTTPS connection (recommended for production use)
 
-2. Save the connection. Connection details are stored in a local configuration file (the location depends on your operating system), while the secret key is stored separately in your operating system's keychain.
+   For **SFTP**:
 
-3. You can create and save multiple connections for different S3 services or buckets.
+   - **Host**: The server with an optional port (default 22)
+   - **Username** and **Password**
+   - **Key File**: (Optional) A private key that is used instead of the password, plus its **Key Passphrase** if it is encrypted
+   - **Start Directory**: (Optional) Defaults to the home directory
 
-The configuration values can also be preset using CLI flags or environment variables. If provided, these will automatically create a special connection named "<Transient>". The available options are:
+   The server's host key is stored on first connect (trust on first use) and verified on every later connection.
+
+   For **FTP**:
+
+   - **Host**: The server with an optional port (default 21)
+   - **Username** and **Password**: Leave both empty for anonymous login
+   - **Start Directory**: (Optional) Defaults to the login directory
+   - **Use TLS (FTPS)**: Upgrades the connection with explicit TLS
+   - **SOCKS5 Proxy**: (Optional) `host:port` of a SOCKS5 proxy, with optional **Proxy Username** and **Proxy Password**
+
+2. Save the connection. Connection details are stored in a local configuration file (the location depends on your operating system), while passwords and secret keys are stored separately in your operating system's keychain. To rename a saved connection, change its name and choose "Rename Connection" (or "Save as New" to keep both).
+
+3. You can create and save multiple connections for different services, buckets or servers.
+
+The S3 configuration values can also be preset using CLI flags or environment variables. If provided, these will automatically create a special connection named "<Transient>". The available options are:
 
 - **Endpoint**: `--endpoint` or `ENDPOINT`
 - **Access Key**: `--accesskey` or `ACCESS_KEY`
@@ -121,11 +144,12 @@ The configuration values can also be preset using CLI flags or environment varia
 2. Select a saved connection or create a new one
 3. Click "Connect" to establish the connection
 4. Use the main interface to:
-   - View objects in your bucket with detailed information
+   - View files and objects with detailed information
    - Use the search bar to find specific objects
    - Select one or multiple objects to download or delete files
-   - Use upload to add new local files to your bucket
-   - Select files and generate temporary download links
+   - Use upload to add new local files
+   - Select files and generate temporary download links (S3)
+   - Sync files between two saved connections
 
 ## Screenshots
 
@@ -134,7 +158,7 @@ Here's a visual walkthrough of the application:
 ### Login Screen
 
 ![Login Screen](website/screenshots/login.png)
-_The login screen where you enter your S3 service configuration details_
+_The connection manager where you set up S3, SFTP and FTP connections_
 
 ### File List View
 
@@ -162,12 +186,14 @@ Built using:
 
 - [MyGo](https://github.com/egoist/mygo) - Native desktop apps in Go: GPU-drawn UI, pure Go (no cgo), signed auto-updates
 - [MinIO Go Client](https://github.com/minio/minio-go) - S3-compatible storage client
+- [pkg/sftp](https://github.com/pkg/sftp) - SFTP client
+- [jlaffaye/ftp](https://github.com/jlaffaye/ftp) - FTP/FTPS client
 
 ## Security Note
 
-Ensure you're using SSL (HTTPS) when connecting to production servers to protect your credentials and data in transit.
+Ensure you're using an encrypted protocol (S3 over HTTPS, SFTP or FTPS) when connecting to production servers to protect your credentials and data in transit. Plain FTP sends passwords unencrypted.
 All credentials are only used on your local machine to create the necessary connection.
-Saved connections store the secret key in your operating system's secure credential store (macOS Keychain, Windows Credential Manager, or the Linux Secret Service) rather than in the configuration file. If no secure store is available, the app falls back to saving the secret key in the local configuration file. Existing connections with plaintext secret keys are migrated to the secure store automatically on first launch.
+Saved connections store passwords, secret keys, key passphrases and proxy passwords in your operating system's secure credential store (macOS Keychain, Windows Credential Manager, or the Linux Secret Service) rather than in the configuration file. If no secure store is available, the app falls back to saving them in the local configuration file. Existing connections with plaintext secrets are migrated to the secure store automatically on first launch.
 
 ## License
 

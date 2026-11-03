@@ -4,24 +4,24 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>us3ui - Universal S3 Object Storage File Manager</title>
+    <title>us3ui - Universal Storage Browser for S3, SFTP and FTP</title>
 
     <meta name="google-site-verification" content="-Zcl-4nh45oLtKN9unuXK-JrZy2EnBlqBoKDHVR89Gk" />
     <link rel="icon" type="image/svg+xml" href="Icon.svg" />
     <link rel="icon" type="image/png" href="Icon.png" />
     <link rel="apple-touch-icon" href="Icon.png" />
 
-    <meta property="og:title" content="us3ui - Universal S3 File Manager" />
+    <meta property="og:title" content="us3ui - Universal Storage Browser for S3, SFTP and FTP" />
     <meta property="og:description"
-        content="Native desktop application for managing files on S3-compatible storage. Supports MinIO, Ceph, AWS, and more." />
+        content="Native desktop application for managing files on S3-compatible storage, SFTP and FTP/FTPS servers. Supports MinIO, Ceph, AWS, and more." />
     <meta property="og:image" content="https://us3ui.pteich.de/Icon.png" />
     <meta property="og:url" content="https://us3ui.pteich.de/" />
     <meta property="og:type" content="website" />
 
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="us3ui - S3 Object Storage Client" />
+    <meta name="twitter:title" content="us3ui - S3, SFTP and FTP Client" />
     <meta name="twitter:description"
-        content="Fast, native desktop client for any S3-compatible object storage. Available for Windows, macOS, and Linux." />
+        content="Fast, native desktop client for S3-compatible object storage, SFTP and FTP servers. Available for Windows, macOS, and Linux." />
     <meta name="twitter:image" content="https://us3ui.pteich.de/screenshots/filelist.png" />
 
     <link rel="stylesheet" href="fonts/fonts.css" />
@@ -37,7 +37,7 @@
                 "author": { "@type": "Person", "name": "Peter Teich", "url": "https://peter-teich.de/" },
                 "applicationCategory": "Utility",
                 "operatingSystem": ["Windows", "macOS", "Linux"],
-                "description": "Native desktop client for S3-compatible object storage services like MinIO, AWS, and Ceph.",
+                "description": "Native desktop client for S3-compatible object storage services like MinIO, AWS, and Ceph, and for SFTP and FTP/FTPS servers.",
                 "offers": {
                     "@type": "Offer",
                     "price": "0",
@@ -565,10 +565,10 @@
         <div class="container">
             <img src="Icon.svg" alt="us3ui logo" class="app-icon" />
             <h1>us3ui</h1>
-            <p>Desktop Client for S3-Compatible Object Storage</p>
+            <p>Universal Storage Browser for S3, SFTP and FTP</p>
             <p>
-                A focused, native file manager for S3 buckets. Browse, upload, and share objects with
-                a fast UI built for daily operations on MinIO, Ceph, AWS, and more.
+                A focused, native file manager for S3 buckets, SFTP and FTP servers. Browse, upload, and share
+                files with one fast UI built for daily operations on MinIO, Ceph, AWS, your own servers, and more.
             </p>
             <div class="download-section">
                 <a href="https://github.com/pteich/us3ui/releases/latest" class="download-btn">
@@ -591,7 +591,7 @@
             <h2 class="section-title">Key Features</h2>
             <p class="section-lead">
                 us3ui is designed for operators and developers who need a fast, no-frills way to work with
-                object storage every day.
+                object storage and file servers every day.
             </p>
             <div class="features-grid">
                 <div class="feature-card">
@@ -599,6 +599,13 @@
                     <p>
                         Connects to standard S3 services including MinIO, Ceph, AWS,
                         and providers like Hetzner, OVH, or Scaleway.
+                    </p>
+                </div>
+                <div class="feature-card">
+                    <h3>SFTP and FTP</h3>
+                    <p>
+                        Browse SFTP servers with password or private key login and verified host keys, and FTP
+                        servers with optional TLS (FTPS) and SOCKS5 proxy support.
                     </p>
                 </div>
                 <div class="feature-card">
@@ -611,26 +618,26 @@
                 <div class="feature-card">
                     <h3>Multi-Profile Support</h3>
                     <p>
-                        Store configurations for multiple buckets or services.
+                        Store connections for multiple buckets, services and servers of any protocol.
                         Switch between environments instantly. Credentials stay local.
                     </p>
                 </div>
                 <div class="feature-card">
                     <h3>File and Bucket Operations</h3>
                     <p>
-                        Browse, upload, download, and delete objects. Create and remove buckets with clear
-                        status feedback.
+                        Browse, upload, download, and delete files on every protocol. Create and remove S3 buckets
+                        with clear status feedback.
                     </p>
                 </div>
                 <div class="feature-card">
                     <h3>Quick Search</h3>
                     <p>
-                        Filter large buckets instantly with full-text search.
+                        Filter large buckets and directories instantly with full-text search.
                     </p>
                 </div>
                 <div class="feature-card">
                     <h3>Flexible Viewing</h3>
-                    <p>Browse a folder tree or all objects at once, with sortable columns for name, size and date.</p>
+                    <p>Browse a folder tree or all files at once, with sortable columns for name, size and date.</p>
                 </div>
                 <div class="feature-card">
                     <h3>Easy Uploads</h3>
@@ -640,13 +647,13 @@
                 </div>
                 <div class="feature-card">
                     <h3>Shareable Links</h3>
-                    <p>Create temporary, pre-signed URLs to share private objects securely. Choose how long a link stays valid, from 15 minutes up to 7 days.</p>
+                    <p>Create temporary, pre-signed URLs to share private S3 objects securely. Choose how long a link stays valid, from 15 minutes up to 7 days.</p>
                 </div>
                 <div class="feature-card">
                     <h3>Sync Between Connections</h3>
                     <p>
-                        Copy objects from one saved connection to another with a dry run first. Data streams
-                        directly between the two servers, never through a local disk.
+                        Copy files from one saved connection to another, even across protocols (e.g. FTP to S3), with a
+                        dry run first. Data streams between the two servers without touching a local disk.
                     </p>
                 </div>
                 <div class="feature-card">
@@ -682,14 +689,14 @@
         <div class="container">
             <h2 class="section-title">How It Works</h2>
             <p class="section-lead">
-                Connect with access keys, browse buckets and objects, and perform file operations. us3ui stores
+                Connect with access keys or server logins, browse buckets, directories and files, and perform file operations. us3ui stores
                 connection profiles locally on your machine and does not proxy your data through any servers.
             </p>
             <div class="features-grid">
                 <div class="feature-card">
                     <h3>Direct Connections</h3>
                     <p>
-                        Connects directly to your S3 endpoint. Your credentials stay on your machine.
+                        Connects directly to your S3 endpoint or server. Your credentials stay on your machine, secrets in the OS keychain.
                     </p>
                 </div>
                 <div class="feature-card">
@@ -731,11 +738,15 @@
             <div class="features-grid">
                 <div class="feature-card">
                     <h3>Does us3ui upload data to a third-party server?</h3>
-                    <p>No. The app connects directly to your S3-compatible endpoint.</p>
+                    <p>No. The app connects directly to your S3-compatible endpoint, SFTP or FTP server.</p>
                 </div>
                 <div class="feature-card">
                     <h3>Where are profiles stored?</h3>
-                    <p>Profiles are stored locally on your machine in the app's config directory.</p>
+                    <p>Profiles are stored locally on your machine in the app's config directory. Passwords and secret keys are kept in your operating system's keychain.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Why is it called us3ui if it speaks SFTP and FTP?</h3>
+                    <p>It started as a Universal S3 UI. SFTP and FTP came later; the name stayed.</p>
                 </div>
                 <div class="feature-card">
                     <h3>Is there a web version?</h3>
