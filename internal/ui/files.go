@@ -87,6 +87,7 @@ type filesState struct {
 
 	xfer       xfer
 	xferCancel context.CancelFunc // cancels the running upload or download
+	conflict   downloadConflictState
 	askDelete  bool
 	split      float32
 	links      []linkItem
@@ -195,11 +196,11 @@ func (a *app) filesView(c *ui.Context) {
 				if ui.Button(c, "Refresh").Clicked() {
 					a.loadObjects(f.prefix)
 				}
-				if ui.PrimaryButton(c, "Upload").Clicked() {
+				if ui.PrimaryButton(c, "Upload").Disabled(f.xfer.active).Clicked() {
 					a.pickAndUpload()
 				}
 				ui.Box(c).Width(1).Height(22).Background(t.Border).Margin(0, 6)
-				if ui.Button(c, "Download").Disabled(nSel == 0).Clicked() {
+				if ui.Button(c, "Download").Disabled(nSel == 0 || f.xfer.active).Clicked() {
 					a.download()
 				}
 				if a.linker != nil {
@@ -211,7 +212,7 @@ func (a *app) filesView(c *ui.Context) {
 					f.askDelete = true
 				}
 				ui.Spacer(c)
-				if ui.Button(c, "Change Connection").Clicked() {
+				if ui.Button(c, "Change Connection").Disabled(f.xfer.active).Clicked() {
 					a.conn.open = true
 				}
 			})
@@ -270,9 +271,7 @@ func (a *app) filesView(c *ui.Context) {
 			if f.xfer.active {
 				ui.Progress(c, f.xfer.frac).Width(300)
 				if ui.Button(c, "Stop").Clicked() {
-					if f.xferCancel != nil {
-						f.xferCancel()
-					}
+					f.stopTransfer()
 				}
 			} else {
 				label(c, "Drop files anywhere to upload")
@@ -575,12 +574,19 @@ func (a *app) linkModal(c *ui.Context) {
 }
 
 func (a *app) pickAndUpload() {
+	ctx := a.files.beginTransfer("Choose files to upload…")
+	if ctx == nil {
+		return
+	}
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.win, Title: "Upload", Multiple: true})
-		if err != nil || len(paths) == 0 {
-			return
-		}
-		a.uploadFiles(paths)
+		a.post(func() {
+			if err != nil || len(paths) == 0 || ctx.Err() != nil {
+				a.files.finishTransfer()
+				return
+			}
+			a.runUpload(ctx, paths)
+		})
 	}()
 }
 
@@ -588,54 +594,67 @@ func (a *app) pickAndUpload() {
 // directory. Safe from any goroutine.
 func (a *app) uploadFiles(paths []string) {
 	a.post(func() {
+		if len(paths) == 0 {
+			return
+		}
 		if a.svc == nil {
 			a.alert("Upload", "No active connection.")
 			return
 		}
-		f := &a.files
-		svc, dir, base := a.svc, f.dir, f.base
-		go func() {
-			ctx, cancel := context.WithCancel(context.Background())
-			a.post(func() { f.xferCancel = cancel })
-			defer cancel()
+		ctx := a.files.beginTransfer("Uploading…")
+		if ctx == nil {
+			a.toast("A transfer is already running")
+			return
+		}
+		a.runUpload(ctx, paths)
+	})
+}
 
-			var tick throttle
-			uploaded := 0
-			canceled := false
-			var failures []string
-			for i, p := range paths {
-				name := uploadObjectName(dir, p)
-				prefix := fmt.Sprintf("Uploading %d of %d: %s", i+1, len(paths), name)
-				a.post(func() { f.xfer = xfer{true, prefix, 0} })
-				err := uploadFile(ctx, svc, p, name, func(frac float64) {
-					if tick.ok(100 * time.Millisecond) {
-						a.post(func() { f.xfer = xfer{true, fmt.Sprintf("%s (%.1f%%)", prefix, frac*100), frac} })
-					}
-				})
-				if errors.Is(err, context.Canceled) {
-					canceled = true
-					break
-				}
-				if err != nil {
-					failures = append(failures, fmt.Sprintf("%s: %v", filepath.Base(p), err))
-					continue
-				}
-				uploaded++
+// runUpload starts an upload with a reservation already held on the UI thread.
+func (a *app) runUpload(ctx context.Context, paths []string) {
+	f := &a.files
+	svc, dir, base := a.svc, f.dir, f.base
+	go func() {
+		var tick throttle
+		uploaded := 0
+		canceled := false
+		var failures []string
+		for i, p := range paths {
+			if ctx.Err() != nil {
+				canceled = true
+				break
 			}
-			a.post(func() {
-				f.xfer, f.xferCancel = xfer{}, nil
-				if canceled {
-					f.status = fmt.Sprintf("Upload canceled (%d of %d files)", uploaded, len(paths))
-					a.toast("Upload canceled")
-					return
-				}
-				a.alert("Upload Complete", transferSummaryMessage("Uploaded", uploaded, len(paths), failures))
-				if uploaded > 0 {
-					a.loadObjects(base)
+			name := uploadObjectName(dir, p)
+			prefix := fmt.Sprintf("Uploading %d of %d: %s", i+1, len(paths), name)
+			a.post(func() { f.xfer = xfer{true, prefix, 0} })
+			err := uploadFile(ctx, svc, p, name, func(frac float64) {
+				if tick.ok(100 * time.Millisecond) {
+					a.post(func() { f.xfer = xfer{true, fmt.Sprintf("%s (%.1f%%)", prefix, frac*100), frac} })
 				}
 			})
-		}()
-	})
+			if errors.Is(err, context.Canceled) {
+				canceled = true
+				break
+			}
+			if err != nil {
+				failures = append(failures, fmt.Sprintf("%s: %v", filepath.Base(p), err))
+				continue
+			}
+			uploaded++
+		}
+		a.post(func() {
+			f.finishTransfer()
+			if uploaded > 0 && a.svc == svc {
+				a.loadObjects(base)
+			}
+			if canceled {
+				f.status = fmt.Sprintf("Upload canceled (%d of %d files)", uploaded, len(paths))
+				a.toast("Upload canceled")
+				return
+			}
+			a.alert("Upload Complete", transferSummaryMessage("Uploaded", uploaded, len(paths), failures))
+		})
+	}()
 }
 
 func uploadFile(ctx context.Context, svc storage.Store, localPath, objectName string, onProgress func(float64)) error {
@@ -670,13 +689,15 @@ func uploadFile(ctx context.Context, svc storage.Store, localPath, objectName st
 
 // download writes the selected objects into a directory the user picks,
 // preserving the keys' directory structure. Each file lands via a verified
-// temporary copy first (storage.DownloadToFile), so failures never leave a
-// partial file and files of the same name are never overwritten; the latter
-// are reported as skipped.
+// temporary copy first; local conflicts are resolved before publication.
 func (a *app) download() {
 	f := &a.files
 	keys, svc := a.selectedKeys(), a.svc
 	if len(keys) == 0 || svc == nil {
+		return
+	}
+	ctx := f.beginTransfer("Choose download destination…")
+	if ctx == nil {
 		return
 	}
 	slices.Sort(keys)
@@ -688,11 +709,9 @@ func (a *app) download() {
 	go func() {
 		dirs, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.win, Title: "Download to…", Directory: true, CreateDirectories: true})
 		if err != nil || len(dirs) == 0 {
+			a.post(f.finishTransfer)
 			return
 		}
-		ctx, cancel := context.WithCancel(context.Background())
-		a.post(func() { f.xferCancel = cancel })
-		defer cancel()
 
 		var tick throttle
 		done, skipped := 0, 0
@@ -710,6 +729,8 @@ func (a *app) download() {
 				if tick.ok(100 * time.Millisecond) {
 					a.post(func() { f.xfer = xfer{true, fmt.Sprintf("%s (%.1f%%)", prefix, frac*100), frac} })
 				}
+			}, func(path string) (storage.DownloadConflict, error) {
+				return a.askDownloadConflict(ctx, path)
 			})
 			switch {
 			case errors.Is(err, context.Canceled):
@@ -726,7 +747,7 @@ func (a *app) download() {
 			}
 		}
 		a.post(func() {
-			f.xfer, f.xferCancel = xfer{}, nil
+			f.finishTransfer()
 			if canceled {
 				f.status = fmt.Sprintf("Download canceled (%d of %d files)", done, len(keys))
 				a.toast("Download canceled")

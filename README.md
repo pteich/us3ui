@@ -19,7 +19,7 @@ Built with Go and [MyGo](https://github.com/egoist/mygo) (native, GPU-drawn UI, 
 - **File Management**:
   - Browse files and objects with size information
   - Upload local files (large files go up in parts automatically)
-  - Download selected files to your local machine: downloads are verified and published atomically, never overwrite existing files, and keep the objects' folder structure
+  - Download selected files to your local machine: downloads are verified before publication and keep the objects' folder structure. Choose Replace, Keep Both or Skip for existing files, with an option to apply your choice to remaining conflicts in the batch
   - Stop running uploads and downloads from the status bar
   - Delete files and objects
   - Select files and generate temporary download links, valid from 15 minutes up to 7 days (S3 only)
@@ -151,6 +151,11 @@ The S3 configuration values can also be preset using CLI flags or environment va
    - Use upload to add new local files
    - Select files and generate temporary download links (S3)
    - Sync files between two saved connections
+
+Downloads create new files exclusively, which requires a destination filesystem
+with hard-link support. Unsupported destinations report an error rather than
+risk overwriting a local file. Replacing an existing file keeps the original
+intact until its replacement has finished downloading and passed verification.
 
 ## Screenshots
 

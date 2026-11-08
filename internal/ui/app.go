@@ -63,6 +63,7 @@ func Run(cfg *config.Config) {
 			Content:   ui.View(a.view),
 		})
 		a.win.OnFileDrop(func(e *mygo.FileDropEvent) { a.uploadFiles(e.Paths) })
+		a.win.OnClosed(a.files.stopTransfer)
 		a.conn.open = true // shown on startup, as before
 	})
 	if err := mygo.App.Run(); err != nil {
@@ -98,6 +99,7 @@ func (a *app) view(c *ui.Context) {
 	a.bucketsModal(c)
 	a.syncModal(c)
 	a.linkModal(c)
+	a.downloadConflictModal(c)
 
 	ui.AlertDialog(c, &a.msgOpen, a.msgTitle, a.msg, "OK")
 	for _, t := range a.toasts {

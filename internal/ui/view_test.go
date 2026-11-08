@@ -80,3 +80,61 @@ func TestTransferShowsStopButton(t *testing.T) {
 		t.Errorf("Stop button shown without a transfer: %q", tt.Texts())
 	}
 }
+
+func TestDownloadConflictDialogChoices(t *testing.T) {
+	for _, tc := range []struct {
+		button string
+		choice storage.DownloadConflict
+	}{
+		{"Replace", storage.ReplaceDownload},
+		{"Keep Both", storage.KeepBothDownloads},
+		{"Skip", storage.SkipDownload},
+	} {
+		t.Run(tc.button, func(t *testing.T) {
+			a := testApp(t)
+			a.files.beginTransfer("Download")
+			defer a.files.finishTransfer()
+			reply := make(chan storage.DownloadConflict, 1)
+			a.files.conflict.request("/downloads/report.pdf", reply)
+			tt := ui.NewTester(a.view, 1000, 600)
+			if err := tt.Click("Apply to remaining conflicts"); err != nil {
+				t.Fatal(err)
+			}
+			if err := tt.Click(tc.button); err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case choice := <-reply:
+				if choice != tc.choice || !a.files.conflict.apply {
+					t.Fatalf("choice=%v, apply=%v", choice, a.files.conflict.apply)
+				}
+			default:
+				t.Fatal("dialog did not release the waiting download")
+			}
+			if tt.HasText("File already exists") {
+				t.Fatal("resolved conflict dialog stayed open")
+			}
+			tt.Frame()
+		})
+	}
+}
+
+func TestDownloadConflictDialogDismissalCancelsTransfer(t *testing.T) {
+	for _, dismiss := range []string{"Escape", "Cancel Download"} {
+		t.Run(dismiss, func(t *testing.T) {
+			a := testApp(t)
+			ctx := a.files.beginTransfer("Download")
+			defer a.files.finishTransfer()
+			a.files.conflict.request("a.txt", make(chan storage.DownloadConflict, 1))
+			tt := ui.NewTester(a.view, 1000, 600)
+			if dismiss == "Escape" {
+				tt.Key(0, ui.KeyEscape)
+			} else if err := tt.Click(dismiss); err != nil {
+				t.Fatal(err)
+			}
+			if ctx.Err() == nil || a.files.conflict.open {
+				t.Fatal("dismissed dialog left a download waiting")
+			}
+		})
+	}
+}

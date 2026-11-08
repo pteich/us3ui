@@ -1,11 +1,10 @@
 // Package safepath turns remote object keys into safe local file paths and
-// publishes downloaded files atomically.
+// publishes downloaded files relative to an open directory.
 //
 // Object keys are attacker-controlled strings in practice: a bucket can hold
 // "../.ssh/id_rsa", "C:\boot.ini" or "CON". Join refuses any key that would
-// escape the destination or name a file some platform cannot store safely;
-// Publish moves a finished temporary file to its final name without ever
-// replacing an existing file or leaving a partial one behind.
+// escape the destination or name a file some platform cannot store safely.
+// Filesystem operations stay relative to os.Root to contain symlinks too.
 package safepath
 
 import (
@@ -17,8 +16,7 @@ import (
 )
 
 // ErrExists reports that a file of the same name already exists at the
-// destination. The existing file is untouched and the temporary one removed
-// by the caller.
+// destination. The existing file and temporary copy are left untouched.
 var ErrExists = errors.New("a file of that name already exists")
 
 // windowsReserved are device names Windows cannot store as regular files,
@@ -32,12 +30,12 @@ var windowsReserved = map[string]struct{}{
 	"conin$": {}, "conout$": {},
 }
 
-// Join maps an object key to a file path under destDir, preserving the key's
+// Join maps an object key to a relative file path under root, preserving its
 // directory structure and creating the parent directories. It rejects keys
 // with empty, relative-navigation (".", ".."), absolute (leading slash or
 // drive letters), or platform-unsafe segments (backslashes, colons, control
 // characters, Windows reserved or trailing dot/space names).
-func Join(destDir, key string) (string, error) {
+func Join(root *os.Root, key string) (string, error) {
 	if key == "" {
 		return "", fmt.Errorf("cannot download an empty object key")
 	}
@@ -47,13 +45,8 @@ func Join(destDir, key string) (string, error) {
 			return "", fmt.Errorf("cannot download %q: %w", key, err)
 		}
 	}
-	final := filepath.Join(destDir, filepath.Join(parts...))
-	// Belt and braces: even with every segment validated, the result must
-	// still name something inside destDir.
-	if rel, err := filepath.Rel(destDir, final); err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("cannot download %q: it escapes the destination directory", key)
-	}
-	if err := os.MkdirAll(filepath.Dir(final), 0o755); err != nil {
+	final := filepath.Join(parts...)
+	if err := root.MkdirAll(filepath.Dir(final), 0o755); err != nil {
 		return "", err
 	}
 	return final, nil
@@ -88,26 +81,19 @@ func validSegment(part string) error {
 	return nil
 }
 
-// Publish atomically moves the finished temporary file tempPath to final
-// without replacing an existing file: it reports ErrExists when one is
-// already there, and never leaves a partial file at final. tempPath must be
-// on the same volume as final; it is removed on every outcome.
-func Publish(tempPath, final string) error {
-	err := os.Link(tempPath, final)
-	if err == nil {
-		os.Remove(tempPath)
-		return nil
+// Publish publishes a finished temporary file within root. Replacement must
+// be explicitly authorized; otherwise an exclusive link protects existing
+// files. The caller removes the temporary name after success or failure.
+func Publish(root *os.Root, tempPath, final string, replace bool) error {
+	if replace {
+		return root.Rename(tempPath, final)
 	}
+	err := root.Link(tempPath, final)
 	if errors.Is(err, os.ErrExist) {
-		os.Remove(tempPath)
 		return ErrExists
 	}
-	// Filesystems without hard links (FAT32, some network shares): fall back
-	// to check-and-rename, which can lose a race but never overwrites after a
-	// successful check.
-	if _, statErr := os.Lstat(final); statErr == nil {
-		os.Remove(tempPath)
-		return ErrExists
+	if err != nil {
+		return fmt.Errorf("cannot publish without replacing an existing file: %w", err)
 	}
-	return os.Rename(tempPath, final) // moves the temp away itself
+	return nil
 }

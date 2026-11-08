@@ -345,6 +345,10 @@ func (a *app) renameConnection() {
 }
 
 func (a *app) connect() {
+	if a.files.xfer.active {
+		a.toast("Stop the current transfer before changing connections")
+		return
+	}
 	cs := &a.conn
 	cfg := cs.config()
 	if cfg.Name != "" {

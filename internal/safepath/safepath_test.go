@@ -4,12 +4,12 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
 func TestJoinMapsKeysToPaths(t *testing.T) {
 	dest := t.TempDir()
+	root := testRoot(t, dest)
 
 	tests := []struct {
 		key  string
@@ -21,12 +21,12 @@ func TestJoinMapsKeysToPaths(t *testing.T) {
 		{"weißes foto.jpg", "weißes foto.jpg"},
 	}
 	for _, tt := range tests {
-		got, err := Join(dest, tt.key)
+		got, err := Join(root, tt.key)
 		if err != nil {
 			t.Errorf("Join(%q): %v", tt.key, err)
 			continue
 		}
-		if want := filepath.Join(dest, tt.want); got != want {
+		if want := tt.want; got != want {
 			t.Errorf("Join(%q) = %q, want %q", tt.key, got, want)
 		}
 	}
@@ -64,15 +64,16 @@ func TestJoinRejectsUnsafeKeys(t *testing.T) {
 		if key == "..hidden" {
 			continue // covered below as an accepted case
 		}
-		if got, err := Join(t.TempDir(), key); err == nil {
+		if got, err := Join(testRoot(t, t.TempDir()), key); err == nil {
 			t.Errorf("Join(%q) = %q, want an error", key, got)
 		}
 	}
 
 	// Dotfiles and names containing reserved words mid-name are fine.
 	dest := t.TempDir()
+	root := testRoot(t, dest)
 	for _, key := range []string{"..hidden", "conman.txt", "my.nul.txt", "icon"} {
-		if _, err := Join(dest, key); err != nil {
+		if _, err := Join(root, key); err != nil {
 			t.Errorf("Join(%q): %v", key, err)
 		}
 	}
@@ -89,14 +90,14 @@ func TestPublishNeverReplaces(t *testing.T) {
 	if err := os.WriteFile(tmp, []byte("new"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := Publish(tmp, final); !errors.Is(err, ErrExists) {
+	if err := Publish(testRoot(t, dir), filepath.Base(tmp), filepath.Base(final), false); !errors.Is(err, ErrExists) {
 		t.Errorf("Publish onto existing file: err = %v, want ErrExists", err)
 	}
 	if got, err := os.ReadFile(final); err != nil || string(got) != "existing" {
 		t.Errorf("existing file changed: %q, %v", got, err)
 	}
-	if _, err := os.Stat(tmp); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("temp file not removed: %v", err)
+	if _, err := os.Stat(tmp); err != nil {
+		t.Errorf("temporary copy lost before conflict resolution: %v", err)
 	}
 }
 
@@ -107,28 +108,51 @@ func TestPublishesFreshFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	final := filepath.Join(dir, "final")
-	if err := Publish(tmp, final); err != nil {
+	if err := Publish(testRoot(t, dir), filepath.Base(tmp), filepath.Base(final), false); err != nil {
 		t.Fatalf("Publish: %v", err)
 	}
 	got, err := os.ReadFile(final)
 	if err != nil || string(got) != "content" {
 		t.Errorf("published content: %q, %v", got, err)
 	}
-	if _, err := os.Stat(tmp); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("temp file still present: %v", err)
+
+}
+
+func TestPublishLinkFailureDoesNotRename(t *testing.T) {
+	dir := t.TempDir()
+	tmp := filepath.Join(dir, "temp")
+	if err := os.Mkdir(tmp, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	final := filepath.Join(dir, "final")
+	// Linking a directory fails, exercising the same path as unsupported links.
+	if err := Publish(testRoot(t, dir), filepath.Base(tmp), filepath.Base(final), false); err == nil {
+		t.Fatal("link failure fell back to a potentially overwriting rename")
+	}
+	if _, err := os.Stat(final); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("published after link failure: %v", err)
 	}
 }
 
 func TestJoinResultStaysInsideDest(t *testing.T) {
-	// Even a crafted key that survives segment checks must not resolve
-	// outside the destination via symlinks created below.
-	dest := t.TempDir()
-	outside := t.TempDir()
+	dest, outside := t.TempDir(), t.TempDir()
 	if err := os.Symlink(outside, filepath.Join(dest, "link")); err != nil {
-		t.Skipf("symlinks unavailable: %v", err)
+		t.Skip(err)
 	}
-	got, err := Join(dest, "link/../file.txt")
-	if err == nil && !strings.HasPrefix(got, dest) {
-		t.Errorf("Join resolved outside dest: %q", got)
+	if _, err := Join(testRoot(t, dest), "link/nested/file.txt"); err == nil {
+		t.Fatal("created directories through an escaping symlink")
 	}
+	if entries, err := os.ReadDir(outside); err != nil || len(entries) != 0 {
+		t.Fatalf("wrote outside destination: %v, %v", entries, err)
+	}
+}
+
+func testRoot(t *testing.T, dir string) *os.Root {
+	t.Helper()
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { root.Close() })
+	return root
 }
