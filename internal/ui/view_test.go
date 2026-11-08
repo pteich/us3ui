@@ -65,3 +65,18 @@ func TestModalsRender(t *testing.T) {
 		t.Errorf("sync dialog missing: %q", tt.Texts())
 	}
 }
+
+func TestTransferShowsStopButton(t *testing.T) {
+	a := testApp(t)
+	a.files.xfer = xfer{active: true, label: "Downloading a.txt", frac: 0.5}
+	tt := ui.NewTester(a.view, 1000, 600)
+	if !tt.HasText("Stop") {
+		t.Errorf("no Stop button during a transfer: %q", tt.Texts())
+	}
+
+	a.files.xfer = xfer{}
+	tt.Frame()
+	if tt.HasText("Stop") {
+		t.Errorf("Stop button shown without a transfer: %q", tt.Texts())
+	}
+}

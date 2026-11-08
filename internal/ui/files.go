@@ -86,6 +86,7 @@ type filesState struct {
 	lastTerm string
 
 	xfer       xfer
+	xferCancel context.CancelFunc // cancels the running upload or download
 	askDelete  bool
 	split      float32
 	links      []linkItem
@@ -268,6 +269,11 @@ func (a *app) filesView(c *ui.Context) {
 			ui.Text(c, a.statusText()).SingleLine().Grow(1)
 			if f.xfer.active {
 				ui.Progress(c, f.xfer.frac).Width(300)
+				if ui.Button(c, "Stop").Clicked() {
+					if f.xferCancel != nil {
+						f.xferCancel()
+					}
+				}
 			} else {
 				label(c, "Drop files anywhere to upload")
 			}
@@ -589,18 +595,27 @@ func (a *app) uploadFiles(paths []string) {
 		f := &a.files
 		svc, dir, base := a.svc, f.dir, f.base
 		go func() {
+			ctx, cancel := context.WithCancel(context.Background())
+			a.post(func() { f.xferCancel = cancel })
+			defer cancel()
+
 			var tick throttle
 			uploaded := 0
+			canceled := false
 			var failures []string
 			for i, p := range paths {
 				name := uploadObjectName(dir, p)
 				prefix := fmt.Sprintf("Uploading %d of %d: %s", i+1, len(paths), name)
 				a.post(func() { f.xfer = xfer{true, prefix, 0} })
-				err := uploadFile(svc, p, name, func(frac float64) {
+				err := uploadFile(ctx, svc, p, name, func(frac float64) {
 					if tick.ok(100 * time.Millisecond) {
 						a.post(func() { f.xfer = xfer{true, fmt.Sprintf("%s (%.1f%%)", prefix, frac*100), frac} })
 					}
 				})
+				if errors.Is(err, context.Canceled) {
+					canceled = true
+					break
+				}
 				if err != nil {
 					failures = append(failures, fmt.Sprintf("%s: %v", filepath.Base(p), err))
 					continue
@@ -608,7 +623,12 @@ func (a *app) uploadFiles(paths []string) {
 				uploaded++
 			}
 			a.post(func() {
-				f.xfer = xfer{}
+				f.xfer, f.xferCancel = xfer{}, nil
+				if canceled {
+					f.status = fmt.Sprintf("Upload canceled (%d of %d files)", uploaded, len(paths))
+					a.toast("Upload canceled")
+					return
+				}
 				a.alert("Upload Complete", transferSummaryMessage("Uploaded", uploaded, len(paths), failures))
 				if uploaded > 0 {
 					a.loadObjects(base)
@@ -618,12 +638,12 @@ func (a *app) uploadFiles(paths []string) {
 	})
 }
 
-func uploadFile(svc storage.Store, localPath, objectName string, onProgress func(float64)) error {
+func uploadFile(ctx context.Context, svc storage.Store, localPath, objectName string, onProgress func(float64)) error {
 	file, err := os.Open(localPath)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	info, err := file.Stat()
 	if err != nil {
 		return err
@@ -645,49 +665,95 @@ func uploadFile(svc storage.Store, localPath, objectName string, onProgress func
 		}
 		onProgress(frac)
 	}}
-	return svc.UploadObjectReader(context.Background(), objectName, pr, total, mimetype.Detect(head).String())
+	return svc.UploadObjectReader(ctx, objectName, pr, total, mimetype.Detect(head).String())
 }
 
+// download writes the selected objects into a directory the user picks,
+// preserving the keys' directory structure. Each file lands via a verified
+// temporary copy first (storage.DownloadToFile), so failures never leave a
+// partial file and files of the same name are never overwritten; the latter
+// are reported as skipped.
 func (a *app) download() {
 	f := &a.files
 	keys, svc := a.selectedKeys(), a.svc
+	if len(keys) == 0 || svc == nil {
+		return
+	}
 	slices.Sort(keys)
+	listed := make(map[string]storage.ObjectInfo, len(keys))
+	for _, o := range f.all {
+		listed[o.Key] = o
+	}
+
 	go func() {
 		dirs, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.win, Title: "Download to…", Directory: true, CreateDirectories: true})
 		if err != nil || len(dirs) == 0 {
 			return
 		}
-		downloaded := 0
+		ctx, cancel := context.WithCancel(context.Background())
+		a.post(func() { f.xferCancel = cancel })
+		defer cancel()
+
+		var tick throttle
+		done, skipped := 0, 0
+		canceled := false
 		var failures []string
 		for i, key := range keys {
-			frac := float64(i+1) / float64(len(keys))
-			a.post(func() { f.xfer = xfer{true, "Downloading " + key, frac} })
-			if err := downloadObject(svc, key, filepath.Join(dirs[0], filepath.Base(key))); err != nil {
+			info := listed[key]
+			prefix := fmt.Sprintf("Downloading %d of %d: %s", i+1, len(keys), key)
+			a.post(func() { f.xfer = xfer{true, prefix, 0} })
+			_, err := storage.DownloadToFile(ctx, svc, key, info, dirs[0], func(n int64) {
+				frac := 0.0
+				if info.Size > 0 {
+					frac = float64(n) / float64(info.Size)
+				}
+				if tick.ok(100 * time.Millisecond) {
+					a.post(func() { f.xfer = xfer{true, fmt.Sprintf("%s (%.1f%%)", prefix, frac*100), frac} })
+				}
+			})
+			switch {
+			case errors.Is(err, context.Canceled):
+				canceled = true
+			case errors.Is(err, storage.ErrExists):
+				skipped++
+			case err != nil:
 				failures = append(failures, fmt.Sprintf("%s: %v", key, err))
-				continue
+			default:
+				done++
 			}
-			downloaded++
+			if canceled {
+				break
+			}
 		}
 		a.post(func() {
-			f.xfer = xfer{}
-			a.alert("Download Complete", transferSummaryMessage("Downloaded", downloaded, len(keys), failures))
+			f.xfer, f.xferCancel = xfer{}, nil
+			if canceled {
+				f.status = fmt.Sprintf("Download canceled (%d of %d files)", done, len(keys))
+				a.toast("Download canceled")
+				return
+			}
+			a.alert("Download Complete", downloadSummary(done, skipped, len(keys), failures))
 		})
 	}()
 }
 
-func downloadObject(svc storage.Store, key, dest string) error {
-	obj, err := svc.DownloadObject(context.Background(), key)
-	if err != nil {
-		return err
+// downloadSummary describes a finished download: what was written, what was
+// skipped because a file of the same name existed, and what failed.
+func downloadSummary(done, skipped, total int, failures []string) string {
+	var msg strings.Builder
+	fmt.Fprintf(&msg, "Downloaded %d of %d files.", done, total)
+	if skipped > 0 {
+		fmt.Fprintf(&msg, "\n\nSkipped %d file(s) that already exist.", skipped)
 	}
-	defer obj.Close()
-	out, err := os.Create(dest)
-	if err != nil {
-		return err
+	if len(failures) > 0 {
+		msg.WriteString("\n\nFailed:")
+		limit := min(len(failures), 5)
+		for _, failure := range failures[:limit] {
+			fmt.Fprintf(&msg, "\n- %s", failure)
+		}
+		if len(failures) > limit {
+			fmt.Fprintf(&msg, "\n- ... and %d more", len(failures)-limit)
+		}
 	}
-	if _, err := io.Copy(out, obj); err != nil {
-		out.Close()
-		return err
-	}
-	return out.Close()
+	return msg.String()
 }

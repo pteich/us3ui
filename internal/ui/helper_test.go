@@ -105,6 +105,16 @@ func TestTransferSummaryMessage(t *testing.T) {
 	}
 }
 
+func TestDownloadSummary(t *testing.T) {
+	if got := downloadSummary(3, 0, 3, nil); got != "Downloaded 3 of 3 files." {
+		t.Errorf("got %q", got)
+	}
+	got := downloadSummary(1, 1, 3, []string{"a: x"})
+	if got != "Downloaded 1 of 3 files.\n\nSkipped 1 file(s) that already exist.\n\nFailed:\n- a: x" {
+		t.Errorf("got %q", got)
+	}
+}
+
 func TestRefilterDropsHiddenSelection(t *testing.T) {
 	var f filesState
 	f.init()

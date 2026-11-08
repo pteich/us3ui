@@ -2,6 +2,7 @@ package s3
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -21,9 +22,10 @@ type Service struct {
 }
 
 var (
-	_ storage.Store         = (*Service)(nil)
-	_ storage.Presigner     = (*Service)(nil)
-	_ storage.BucketManager = (*Service)(nil)
+	_ storage.Store                 = (*Service)(nil)
+	_ storage.ConditionalDownloader = (*Service)(nil)
+	_ storage.Presigner             = (*Service)(nil)
+	_ storage.BucketManager         = (*Service)(nil)
 )
 
 func New(cfg config.S3Config) (*Service, error) {
@@ -54,6 +56,35 @@ func (s *Service) UploadObjectReader(ctx context.Context, objectName string, r i
 
 func (s *Service) DownloadObject(ctx context.Context, objectName string) (io.ReadCloser, error) {
 	return s.client.GetObject(ctx, s.bucketName, objectName, minio.GetObjectOptions{})
+}
+
+// DownloadObjectIfMatch refuses to return an object whose contents changed
+// since etag was observed: the failure surfaces as storage.ErrObjectChanged
+// on the first Read, so a download never mixes two versions of an object.
+func (s *Service) DownloadObjectIfMatch(ctx context.Context, objectName, etag string) (io.ReadCloser, error) {
+	opts := minio.GetObjectOptions{}
+	if err := opts.SetMatchETag(etag); err != nil {
+		return nil, err
+	}
+	obj, err := s.client.GetObject(ctx, s.bucketName, objectName, opts)
+	if err != nil {
+		return nil, err
+	}
+	return changedReader{obj}, nil
+}
+
+// changedReader maps the request-time precondition failure of a conditional
+// GET (which surfaces on the first Read) to storage.ErrObjectChanged.
+type changedReader struct {
+	io.ReadCloser
+}
+
+func (r changedReader) Read(p []byte) (int, error) {
+	n, err := r.ReadCloser.Read(p)
+	if err != nil && !errors.Is(err, io.EOF) && minio.ToErrorResponse(err).Code == "PreconditionFailed" {
+		return n, fmt.Errorf("%w: refresh the listing and try again", storage.ErrObjectChanged)
+	}
+	return n, err
 }
 
 func (s *Service) GetPresignedURL(ctx context.Context, objectName string, expires time.Duration) (*url.URL, error) {
@@ -105,6 +136,7 @@ func objectInfo(o minio.ObjectInfo) storage.ObjectInfo {
 		Size:         o.Size,
 		LastModified: o.LastModified,
 		ContentType:  o.ContentType,
+		ETag:         o.ETag,
 	}
 }
 

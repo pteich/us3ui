@@ -156,7 +156,15 @@ func copyOne(ctx context.Context, src, dst Store, a SyncAction, onBytes func(int
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
-	obj, err := src.DownloadObject(ctx, a.SrcKey)
+	var obj io.ReadCloser
+	// The ETag was statted just above; a conditional GET refuses objects
+	// rewritten between the stat and the download instead of copying a
+	// mixture of two versions.
+	if cd, ok := src.(ConditionalDownloader); ok && info.ETag != "" {
+		obj, err = cd.DownloadObjectIfMatch(ctx, a.SrcKey, info.ETag)
+	} else {
+		obj, err = src.DownloadObject(ctx, a.SrcKey)
+	}
 	if err != nil {
 		return err
 	}

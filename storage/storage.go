@@ -23,6 +23,12 @@ type ObjectInfo struct {
 	// ContentType is set by StatObject where the protocol has the concept;
 	// listings may leave it empty.
 	ContentType string
+
+	// ETag is the object's content fingerprint where the protocol has one
+	// (S3). Listings provide it without extra requests; other protocols
+	// leave it empty. DownloadToFile uses it to refuse transfers of objects
+	// that changed since they were listed.
+	ETag string
 }
 
 // BucketInfo describes one top-level container (an S3 bucket).
@@ -71,6 +77,14 @@ type Store interface {
 
 	// DeleteObject removes one object.
 	DeleteObject(ctx context.Context, objectName string) error
+}
+
+// ConditionalDownloader is implemented by stores that can refuse to return
+// an object whose contents changed since etag was observed. Downloads use it
+// to fail with ErrObjectChanged instead of silently storing bytes that mix
+// two versions of an object.
+type ConditionalDownloader interface {
+	DownloadObjectIfMatch(ctx context.Context, objectName, etag string) (io.ReadCloser, error)
 }
 
 // Presigner is implemented by stores that can hand out temporary share

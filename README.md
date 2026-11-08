@@ -18,8 +18,9 @@ Built with Go and [MyGo](https://github.com/egoist/mygo) (native, GPU-drawn UI, 
 - **Secure Connections**: HTTPS for S3, SSH for SFTP, TLS for FTPS
 - **File Management**:
   - Browse files and objects with size information
-  - Upload local files
-  - Download selected files to your local machine
+  - Upload local files (large files go up in parts automatically)
+  - Download selected files to your local machine: downloads are verified and published atomically, never overwrite existing files, and keep the objects' folder structure
+  - Stop running uploads and downloads from the status bar
   - Delete files and objects
   - Select files and generate temporary download links, valid from 15 minutes up to 7 days (S3 only)
   - Create and remove buckets (S3 only)
